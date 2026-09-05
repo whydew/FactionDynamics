@@ -1,0 +1,68 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Faction Dynamics - build project.
+
+    References RimWorld's own managed DLLs directly (no NuGet needed), so it builds
+    offline. Adjust the three path properties below if your install lives elsewhere,
+    or override them on the command line:
+        dotnet build -c Release -p:RimWorldManaged=... -p:HarmonyDll=...
+    Output goes straight to ..\Assemblies\FactionDynamics.dll.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>FactionDynamics</AssemblyName>
+    <RootNamespace>FactionDynamics</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Deterministic>true</Deterministic>
+
+    <!-- Compile against the game's own framework assemblies rather than a NuGet targeting pack. -->
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <NoStdLib>true</NoStdLib>
+    <AutomaticallyUseReferenceAssemblyPackages>false</AutomaticallyUseReferenceAssemblyPackages>
+    <ResolveNuGetPackages>false</ResolveNuGetPackages>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <OutputPath>..\Assemblies\</OutputPath>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+  </PropertyGroup>
+
+  <!-- === Adjust these to match your machine if needed === -->
+  <PropertyGroup>
+    <RimWorldManaged Condition="'$(RimWorldManaged)' == ''">C:\Program Files (x86)\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed</RimWorldManaged>
+    <!-- Point MSBuild at the game's Mono framework folder so it needs no .NET Framework targeting pack. -->
+    <FrameworkPathOverride>$(RimWorldManaged)</FrameworkPathOverride>
+    <HarmonyDll Condition="'$(HarmonyDll)' == ''">C:\Program Files (x86)\Steam\steamapps\workshop\content\294100\2009463077\Current\Assemblies\0Harmony.dll</HarmonyDll>
+    <!-- Multiplayer.API ships with the Multiplayer mod. This reference is compile-time only
+         (Private=false); the mod runs fine when Multiplayer is not installed. -->
+    <MultiplayerApiDll Condition="'$(MultiplayerApiDll)' == ''">..\..\RimworldMP\Assemblies\0MultiplayerAPI.dll</MultiplayerApiDll>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Framework assemblies (from the game's Mono runtime) -->
+    <Reference Include="mscorlib">      <HintPath>$(RimWorldManaged)\mscorlib.dll</HintPath>      <Private>false</Private></Reference>
+    <Reference Include="System">        <HintPath>$(RimWorldManaged)\System.dll</HintPath>        <Private>false</Private></Reference>
+    <Reference Include="System.Core">   <HintPath>$(RimWorldManaged)\System.Core.dll</HintPath>   <Private>false</Private></Reference>
+    <Reference Include="System.Xml">    <HintPath>$(RimWorldManaged)\System.Xml.dll</HintPath>    <Private>false</Private></Reference>
+    <Reference Include="netstandard">   <HintPath>$(RimWorldManaged)\netstandard.dll</HintPath>   <Private>false</Private></Reference>
+
+    <!-- RimWorld + Unity -->
+    <Reference Include="Assembly-CSharp">                   <HintPath>$(RimWorldManaged)\Assembly-CSharp.dll</HintPath>                   <Private>false</Private></Reference>
+    <Reference Include="UnityEngine">                       <HintPath>$(RimWorldManaged)\UnityEngine.dll</HintPath>                       <Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule">            <HintPath>$(RimWorldManaged)\UnityEngine.CoreModule.dll</HintPath>            <Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule">           <HintPath>$(RimWorldManaged)\UnityEngine.IMGUIModule.dll</HintPath>           <Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">   <HintPath>$(RimWorldManaged)\UnityEngine.TextRenderingModule.dll</HintPath>   <Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">     <HintPath>$(RimWorldManaged)\UnityEngine.InputLegacyModule.dll</HintPath>     <Private>false</Private></Reference>
+
+    <!-- Harmony (required) and Multiplayer.API (optional, compile-time only) -->
+    <Reference Include="0Harmony">          <HintPath>$(HarmonyDll)</HintPath>          <Private>false</Private></Reference>
+    <Reference Include="0MultiplayerAPI">   <HintPath>$(MultiplayerApiDll)</HintPath>   <Private>false</Private></Reference>
+  </ItemGroup>
+
+</Project>

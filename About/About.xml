@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Faction Dynamics - Diplomacy and War</name>
+  <author>Matt</author>
+  <packageId>matt.factiondynamics</packageId>
+  <modVersion>1.0.0</modVersion>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <description>A living world map. Faction settlements are founded, grow, and collapse over time; raids come from a real place on the map and are more likely from neighbours who live nearby; and raiders show up with a reason - hungry factions come for your food and leave once they have it, wronged factions come for revenge and fight to the end.
+
+FEATURES
+- Dynamic settlements: NPC factions found, expand, abandon and lose settlements over time, with in-world reasons and vanilla-style letters for anything happening near you.
+- Raid regrouping: a settlement that just sent a raid at you is weakened while it regroups, and won't send another until it recovers.
+- Geography-aware raids: hostile neighbours close to your colony raid you far more often, with bigger groups and faster arrivals than factions on the far side of the planet.
+- Motivated raids: raiders can arrive starving (steal food, then leave), greedy (steal valuables, then leave), or vengeful (fight harder, retreat later). Each motivation changes targets, retreat conditions and letter text.
+- New quests: raid or defend other factions' settlements, and collect high-profile bounties on named pawns for the Empire and other powerful factions.
+- Everything is modular - each system can be turned off independently in mod settings.
+
+MULTIPLAYER
+Built for RimWorld Multiplayer from the ground up: all world simulation is deterministic and tick-driven, all player actions route through synced commands, and mod settings are host-authoritative in a session.
+
+Fully standalone. No hard dependencies. Requires Harmony.</description>
+  <modDependencies>
+    <li>
+      <packageId>brrainz.harmony</packageId>
+      <displayName>Harmony</displayName>
+      <downloadUrl>https://github.com/pardeike/HarmonyRimWorld/releases/latest</downloadUrl>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>brrainz.harmony</li>
+    <li>rwmt.Multiplayer</li>
+  </loadAfter>
+</ModMetaData>

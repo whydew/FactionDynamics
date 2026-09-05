@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    M4b - Defend a neighbouring settlement.
+
+    Vanilla cannot stage a battle at a real Settlement, so "defending" one is expressed the way it
+    would actually happen on the Rim: the besieging force has a camp, and you break the siege by
+    destroying it. Same proven site machinery as the strike quest, opposite fiction, and real
+    diplomatic stakes on both ends - the neighbour's goodwill goes up if you save them, and down if
+    you let the deadline pass. Letting an ally down is supposed to cost you something.
+  -->
+
+  <QuestScriptDef>
+    <defName>FD_DefendNeighbourSettlement</defName>
+    <rootSelectionWeight>1.4</rootSelectionWeight>
+    <rootMinPoints>400</rootMinPoints>
+    <canGiveRoyalFavor>true</canGiveRoyalFavor>
+    <expireDaysRange>3~6</expireDaysRange>
+    <everAcceptableInSpace>false</everAcceptableInSpace>
+    <questNameRules>
+      <rulesStrings>
+        <li>questName->The siege of [allySettlement_name]</li>
+        <li>questName->Relief of [allySettlement_name]</li>
+        <li>questName->[allyFaction_name] call for help</li>
+      </rulesStrings>
+    </questNameRules>
+    <questDescriptionRules>
+      <rulesStrings>
+        <li>questDescription->[asker_nameFull] of [allyFaction_name] has sent an urgent message from [allySettlement_name]. [siteFaction_name] have set up a camp within striking distance of the settlement, and raiding parties are already going out from it.
+\n[allyFaction_name] cannot break the camp themselves. They are asking us to do it - kill everyone there and destroy the turrets - before the settlement is overrun. [asker_label] says that [sitePart0_description].
+\nIf we let this one go, [allyFaction_name] will remember that we did nothing while their people were under siege.</li>
+      </rulesStrings>
+    </questDescriptionRules>
+    <root Class="QuestNode_Sequence">
+      <nodes>
+        <li Class="FactionDynamics.QuestNode_FDGate">
+          <module>raiding</module>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_RandomizePointsChallengeRating</def>
+          <parms>
+            <pointsFactorTwoStar>1.5</pointsFactorTwoStar>
+            <pointsFactorThreeStar>2</pointsFactorThreeStar>
+          </parms>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_AdjustPointsForDistantFight</def>
+        </li>
+
+        <li Class="QuestNode_GetMap" />
+
+        <!-- The neighbour under pressure: their settlement, faction and leader. -->
+        <li Class="QuestNode_GetNearbySettlement">
+          <storeAs>allySettlement</storeAs>
+          <storeFactionAs>allyFaction</storeFactionAs>
+          <storeFactionLeaderAs>asker</storeFactionLeaderAs>
+        </li>
+
+        <li Class="QuestNode_GetSiteTile">
+          <storeAs>siteTile</storeAs>
+          <preferCloserTiles>true</preferCloserTiles>
+        </li>
+
+        <li Class="QuestNode_GetSitePartDefsByTagsAndFaction">
+          <storeAs>sitePartDefs</storeAs>
+          <storeFactionAs>siteFaction</storeFactionAs>
+          <sitePartsTags>
+            <li><tag>BanditCamp</tag></li>
+          </sitePartsTags>
+          <mustBeHostileToFactionOf>$asker</mustBeHostileToFactionOf>
+        </li>
+
+        <li Class="QuestNode_GetDefaultSitePartsParams">
+          <tile>$siteTile</tile>
+          <faction>$siteFaction</faction>
+          <sitePartDefs>$sitePartDefs</sitePartDefs>
+          <storeSitePartsParamsAs>sitePartsParams</storeSitePartsParamsAs>
+        </li>
+
+        <li Class="QuestNode_GetSiteThreatPoints">
+          <storeAs>sitePoints</storeAs>
+          <sitePartsParams>$sitePartsParams</sitePartsParams>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_GetDefaultRewardValueFromPoints</def>
+          <parms>
+            <points>$sitePoints</points>
+          </parms>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_GenerateSite</def>
+        </li>
+
+        <li Class="QuestNode_SpawnWorldObjects">
+          <worldObjects>$site</worldObjects>
+        </li>
+
+        <li Class="QuestNode_WorldObjectTimeout">
+          <worldObject>$site</worldObject>
+          <isQuestTimeout>true</isQuestTimeout>
+          <delayTicks>$(randInt(8,16)*60000)</delayTicks>
+          <inSignalDisable>site.MapGenerated</inSignalDisable>
+          <destroyOnCleanup>true</destroyOnCleanup>
+          <node Class="QuestNode_Sequence">
+            <nodes>
+              <li Class="QuestNode_Letter">
+                <label TKey="FDLetterLabelSiegeUnbroken">Siege unbroken: [resolvedQuestName]</label>
+                <text TKey="FDLetterTextSiegeUnbroken">We did nothing, and the camp outside [allySettlement_name] did its work. [allyFaction_name] have noted who did not come.</text>
+              </li>
+              <li Class="QuestNode_ChangeFactionGoodwill">
+                <faction>$allyFaction</faction>
+                <change>-18</change>
+                <canSendLetter>true</canSendLetter>
+              </li>
+              <li Class="QuestNode_End">
+                <outcome>Fail</outcome>
+              </li>
+            </nodes>
+          </node>
+        </li>
+
+        <li Class="QuestNode_Signal">
+          <inSignal>site.Destroyed</inSignal>
+          <node Class="QuestNode_Sequence">
+            <nodes>
+              <li Class="QuestNode_Letter">
+                <label TKey="LetterLabelQuestFailed">Quest failed: [resolvedQuestName]</label>
+                <text TKey="LetterTextQuestFailed">The camp broke up before we got there. The quest [resolvedQuestName] has ended.</text>
+              </li>
+              <li Class="QuestNode_End">
+                <outcome>Fail</outcome>
+              </li>
+            </nodes>
+          </node>
+        </li>
+
+        <li Class="QuestNode_Signal">
+          <inSignal>site.AllEnemiesDefeated</inSignal>
+          <node Class="QuestNode_Sequence">
+            <nodes>
+              <li Class="QuestNode_Notify_PlayerRaidedSomeone">
+                <getRaidersFromMapParent>$site</getRaidersFromMapParent>
+              </li>
+              <li Class="QuestNode_ChangeFactionGoodwill">
+                <faction>$allyFaction</faction>
+                <change>20</change>
+                <canSendLetter>true</canSendLetter>
+              </li>
+              <li Class="QuestNode_GiveRewards">
+                <parms>
+                  <allowGoodwill>true</allowGoodwill>
+                  <allowRoyalFavor>true</allowRoyalFavor>
+                  <chosenPawnSignal>ChosenPawnForReward</chosenPawnSignal>
+                </parms>
+                <addCampLootReward>true</addCampLootReward>
+                <customLetterLabel TKey="FDLetterLabelSiegeBroken">Siege broken</customLetterLabel>
+                <customLetterText TKey="FDLetterTextSiegeBroken">The camp outside [allySettlement_name] is gone.\n\n[allyFaction_name] have sent payment, and they will not forget who showed up.</customLetterText>
+              </li>
+            </nodes>
+          </node>
+        </li>
+
+        <li Class="FactionDynamics.QuestNode_FDWeakenFaction">
+          <inSignal>site.AllEnemiesDefeated</inSignal>
+          <faction>$siteFaction</faction>
+          <tile>$siteTile</tile>
+          <hardship>0.3</hardship>
+        </li>
+
+        <li Class="QuestNode_End">
+          <inSignal>site.AllEnemiesDefeated</inSignal>
+          <outcome>Success</outcome>
+        </li>
+      </nodes>
+    </root>
+  </QuestScriptDef>
+
+</Defs>

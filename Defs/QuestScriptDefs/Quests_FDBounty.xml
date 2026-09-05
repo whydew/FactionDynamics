@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    M5 - High-profile bounty on a named pawn.
+
+    There is no vanilla bounty quest to clone, but the pieces exist: QuestNode_GetPawn can pull an
+    existing world pawn (canGeneratePawn false, so it is somebody who already exists in this world,
+    not a pawn invented for the quest), QuestNode_AddTag tags them, and the engine already fires
+    "<tag>.Killed" / "<tag>.Arrested" signals against quest tags whenever that pawn dies or is taken
+    prisoner. So capture and kill are both tracked with no custom quest part at all.
+
+    Capture and kill both pay; capture also earns standing with the asker.
+  -->
+
+  <QuestScriptDef>
+    <defName>FD_HighProfileBounty</defName>
+    <rootSelectionWeight>1.4</rootSelectionWeight>
+    <rootMinPoints>500</rootMinPoints>
+    <canGiveRoyalFavor>true</canGiveRoyalFavor>
+    <expireDaysRange>3~7</expireDaysRange>
+    <questNameRules>
+      <rulesStrings>
+        <li>questName->Bounty: [targetName]</li>
+        <li>questName->The price on [targetName]</li>
+        <li>questName->[asker_faction_name] wants [targetName]</li>
+      </rulesStrings>
+    </questNameRules>
+    <questDescriptionRules>
+      <rulesStrings>
+        <li>questDescription->[asker_nameFull], [asker_faction_leaderTitle] of [asker_faction_name], has put a price on [targetName] of [targetFactionName].
+\n[asker_definite] wants them taken - alive if we can manage it, dead if we cannot. [asker_label] has not said what [targetName] did, and did not seem interested in being asked.
+\nBring it about however we like: a raid, an ambush on the road, or an arrest if [targetName] ever sets foot on our land. The bounty is paid either way, but [asker_faction_name] would much rather have [targetName] alive, and will think better of us for it.</li>
+      </rulesStrings>
+    </questDescriptionRules>
+    <root Class="QuestNode_Sequence">
+      <nodes>
+        <li Class="FactionDynamics.QuestNode_FDGate">
+          <module>bounty</module>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_RandomizePointsChallengeRating</def>
+        </li>
+
+        <li Class="QuestNode_GetMap" />
+
+        <!-- Who is paying: a leader of an established, non-hostile faction. -->
+        <li Class="QuestNode_GetPawn">
+          <storeAs>asker</storeAs>
+          <mustBeFactionLeader>true</mustBeFactionLeader>
+          <mustBeNonHostileToPlayer>true</mustBeNonHostileToPlayer>
+          <allowPermanentEnemyFaction>false</allowPermanentEnemyFaction>
+          <minTechLevel>Industrial</minTechLevel>
+        </li>
+
+        <!-- Who they want: either a pawn handed to us (someone with a price on their head who
+             just walked onto a player map) or, failing that, a notable pawn out in the world. -->
+        <li Class="FactionDynamics.QuestNode_FDBountyTarget">
+          <storeAs>target</storeAs>
+        </li>
+
+        <li Class="QuestNode_AddTag">
+          <targets>$target</targets>
+          <tag>bountyTarget</tag>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_GetDefaultRewardValueFromPoints</def>
+        </li>
+
+        <li Class="FactionDynamics.QuestNode_FDScaleBountyReward" />
+
+        <!--
+          No completion deadline, on purpose. A bounty target wanders the world and may not cross
+          your path for a year, so a timer would quietly fail a quest you were still working on.
+          The offer still expires if you never accept it (expireDaysRange above), but once accepted
+          the bounty stands until the target is taken or killed.
+        -->
+
+        <!--
+          One rewards node covering both outcomes. Two separate QuestNode_GiveRewards (one per
+          branch) each create their own reward choice, and accepting the quest then trips
+          "QuestPart_Choice still has a choice unresolved" because only one of them can ever be
+          answered. The bonus for taking them alive is paid in goodwill instead, which needs no
+          second choice.
+        -->
+        <li Class="QuestNode_AnySignal">
+          <inSignals>
+            <li>bountyTarget.Killed</li>
+            <li>bountyTarget.Arrested</li>
+          </inSignals>
+          <node Class="QuestNode_Sequence">
+            <nodes>
+              <li Class="QuestNode_GiveRewards">
+                <parms>
+                  <allowGoodwill>true</allowGoodwill>
+                  <allowRoyalFavor>true</allowRoyalFavor>
+                </parms>
+                <customLetterLabel TKey="FDLetterLabelBountyPaid">Bounty paid</customLetterLabel>
+                <customLetterText TKey="FDLetterTextBountyPaid">The bounty on [targetName] has been collected. [asker_faction_name] have paid out.</customLetterText>
+              </li>
+              <li Class="QuestNode_End">
+                <outcome>Success</outcome>
+              </li>
+            </nodes>
+          </node>
+        </li>
+
+        <!-- Alive is worth more to them than dead: paid in standing, not a second reward choice. -->
+        <li Class="QuestNode_Signal">
+          <inSignal>bountyTarget.Arrested</inSignal>
+          <node Class="QuestNode_ChangeFactionGoodwill">
+            <factionOf>$asker</factionOf>
+            <change>12</change>
+            <canSendLetter>true</canSendLetter>
+          </node>
+        </li>
+      </nodes>
+    </root>
+  </QuestScriptDef>
+
+</Defs>

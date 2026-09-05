@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Loot duties for motivated raids. Same shape as vanilla's Steal duty, with two changes:
+      1. our own JobGiver, which filters targets by category (food vs. valuables);
+      2. a fight-back node underneath it, because unlike vanilla's opportunistic steal (which peels
+         off single pawns) a motivated raid puts the whole group on this duty - without it, raiders
+         would walk past a firefight with their arms full.
+
+    Node order matters: the loot JobGiver returns null when the pawn is in dangerous combat, so a
+    raider under fire falls through to fighting, then leaves when there is nothing left to grab.
+  -->
+
+  <DutyDef>
+    <defName>FD_LootFood</defName>
+    <thinkNode Class="ThinkNode_Priority">
+      <subNodes>
+        <li Class="JobGiver_TakeCombatEnhancingDrug" />
+        <li Class="FactionDynamics.JobGiver_FDSteal">
+          <lootCategory>Food</lootCategory>
+          <searchRadius>40</searchRadius>
+        </li>
+        <li Class="JobGiver_AIFightEnemies">
+          <targetAcquireRadius>20</targetAcquireRadius>
+          <targetKeepRadius>26</targetKeepRadius>
+        </li>
+        <li Class="JobGiver_ExitMapBest">
+          <defaultLocomotion>Jog</defaultLocomotion>
+          <jobMaxDuration>200</jobMaxDuration>
+          <forceCanDig>true</forceCanDig>
+        </li>
+      </subNodes>
+    </thinkNode>
+  </DutyDef>
+
+  <DutyDef>
+    <defName>FD_LootValuables</defName>
+    <thinkNode Class="ThinkNode_Priority">
+      <subNodes>
+        <li Class="JobGiver_TakeCombatEnhancingDrug" />
+        <li Class="FactionDynamics.JobGiver_FDSteal">
+          <lootCategory>Valuables</lootCategory>
+          <searchRadius>40</searchRadius>
+        </li>
+        <li Class="JobGiver_AIFightEnemies">
+          <targetAcquireRadius>20</targetAcquireRadius>
+          <targetKeepRadius>26</targetKeepRadius>
+        </li>
+        <li Class="JobGiver_ExitMapBest">
+          <defaultLocomotion>Jog</defaultLocomotion>
+          <jobMaxDuration>200</jobMaxDuration>
+          <forceCanDig>true</forceCanDig>
+        </li>
+      </subNodes>
+    </thinkNode>
+  </DutyDef>
+
+</Defs>

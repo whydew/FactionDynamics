@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    M4a - Strike a rival faction's forward camp.
+
+    Built on the same node graph as Core's OpportunitySite_BanditCamp (a generated Site the player
+    clears), because vanilla has no mechanism for assaulting a real persistent Settlement through a
+    quest. What this mod adds on top is consequence: clearing the camp weakens that faction's
+    nearest real settlement on the world map and feeds their hardship and their grudge against you,
+    via QuestNode_FDWeakenFaction.
+
+    Selection weights are doubled and gated by QuestNode_FDGate, which applies the saved (host)
+    frequency setting - see QuestNode_FDGate for why that is not just rootSelectionWeight.
+  -->
+
+  <QuestScriptDef>
+    <defName>FD_StrikeRivalOutpost</defName>
+    <rootSelectionWeight>1.6</rootSelectionWeight>
+    <rootMinPoints>400</rootMinPoints>
+    <canGiveRoyalFavor>true</canGiveRoyalFavor>
+    <expireDaysRange>4~8</expireDaysRange>
+    <everAcceptableInSpace>false</everAcceptableInSpace>
+    <questNameRules>
+      <rulesStrings>
+        <li>questName->The [outpost] at [siteFaction_name]'s border</li>
+        <li>questName->Strike on the [outpost]</li>
+        <li>questName->[asker_nameDef] and the [outpost]</li>
+        <li>outpost->Forward Camp</li>
+        <li>outpost->Staging Camp</li>
+        <li>outpost->Border Outpost</li>
+        <li>outpost->War Camp</li>
+      </rulesStrings>
+    </questNameRules>
+    <questDescriptionRules>
+      <rulesStrings>
+        <li>questDescription->[asker_nameFull], [asker_faction_leaderTitle] of [asker_faction_name], has sent word about a staging camp [siteFaction_name] have put up nearby. Raiding parties have been forming there.
+\n[asker_nameDef] is asking us to burn it out - which means killing everyone in it and destroying its turrets. [asker_label] says that [sitePart0_description].
+\nHitting the camp will cost [siteFaction_name] more than the camp itself: their nearest settlement will be picking up the pieces for a while.</li>
+      </rulesStrings>
+    </questDescriptionRules>
+    <root Class="QuestNode_Sequence">
+      <nodes>
+        <!-- Fallback only: if a real hostile settlement is within reach, FD_StrikeRivalSettlement
+             handles it instead and this quest stands down. -->
+        <li Class="FactionDynamics.QuestNode_FDGate">
+          <module>raiding</module>
+          <requireNoSettlementTarget>true</requireNoSettlementTarget>
+          <settlementTargetRange>90</settlementTargetRange>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_RandomizePointsChallengeRating</def>
+          <parms>
+            <pointsFactorTwoStar>1.5</pointsFactorTwoStar>
+            <pointsFactorThreeStar>2</pointsFactorThreeStar>
+          </parms>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_AdjustPointsForDistantFight</def>
+        </li>
+
+        <li Class="QuestNode_GetMap" />
+
+        <li Class="QuestNode_GetPawn">
+          <storeAs>asker</storeAs>
+          <mustBeFactionLeader>true</mustBeFactionLeader>
+          <allowPermanentEnemyFaction>false</allowPermanentEnemyFaction>
+          <hostileWeight>0.15</hostileWeight>
+        </li>
+
+        <li Class="QuestNode_GetSiteTile">
+          <storeAs>siteTile</storeAs>
+          <preferCloserTiles>true</preferCloserTiles>
+        </li>
+
+        <li Class="QuestNode_GetSitePartDefsByTagsAndFaction">
+          <storeAs>sitePartDefs</storeAs>
+          <storeFactionAs>siteFaction</storeFactionAs>
+          <sitePartsTags>
+            <li><tag>BanditCamp</tag></li>
+          </sitePartsTags>
+          <mustBeHostileToFactionOf>$asker</mustBeHostileToFactionOf>
+        </li>
+
+        <li Class="QuestNode_GetDefaultSitePartsParams">
+          <tile>$siteTile</tile>
+          <faction>$siteFaction</faction>
+          <sitePartDefs>$sitePartDefs</sitePartDefs>
+          <storeSitePartsParamsAs>sitePartsParams</storeSitePartsParamsAs>
+        </li>
+
+        <li Class="QuestNode_GetSiteThreatPoints">
+          <storeAs>sitePoints</storeAs>
+          <sitePartsParams>$sitePartsParams</sitePartsParams>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_GetDefaultRewardValueFromPoints</def>
+          <parms>
+            <points>$sitePoints</points>
+          </parms>
+        </li>
+
+        <li Class="QuestNode_Multiply">
+          <value1>$rewardValue</value1>
+          <value2>1.75</value2>
+          <storeAs>rewardValue</storeAs>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_GenerateSite</def>
+        </li>
+
+        <li Class="QuestNode_SpawnWorldObjects">
+          <worldObjects>$site</worldObjects>
+        </li>
+
+        <li Class="QuestNode_WorldObjectTimeout">
+          <worldObject>$site</worldObject>
+          <isQuestTimeout>true</isQuestTimeout>
+          <delayTicks>$(randInt(10,22)*60000)</delayTicks>
+          <inSignalDisable>site.MapGenerated</inSignalDisable>
+          <destroyOnCleanup>true</destroyOnCleanup>
+          <node Class="QuestNode_Sequence">
+            <nodes>
+              <li Class="QuestNode_Letter">
+                <label TKey="LetterLabelQuestExpired">Quest expired: [resolvedQuestName]</label>
+                <text TKey="LetterTextQuestExpired">The camp has broken up and moved on. The quest [resolvedQuestName] has expired.</text>
+              </li>
+              <li Class="QuestNode_End">
+                <outcome>Fail</outcome>
+              </li>
+            </nodes>
+          </node>
+        </li>
+
+        <li Class="QuestNode_Signal">
+          <inSignal>site.Destroyed</inSignal>
+          <node Class="QuestNode_Sequence">
+            <nodes>
+              <li Class="QuestNode_Letter">
+                <label TKey="LetterLabelQuestFailed">Quest failed: [resolvedQuestName]</label>
+                <text TKey="LetterTextQuestFailed">The camp dispersed after being discovered. The quest [resolvedQuestName] has ended.</text>
+              </li>
+              <li Class="QuestNode_End">
+                <outcome>Fail</outcome>
+              </li>
+            </nodes>
+          </node>
+        </li>
+
+        <li Class="QuestNode_Signal">
+          <inSignal>site.AllEnemiesDefeated</inSignal>
+          <node Class="QuestNode_Sequence">
+            <nodes>
+              <li Class="QuestNode_Notify_PlayerRaidedSomeone">
+                <getRaidersFromMapParent>$site</getRaidersFromMapParent>
+              </li>
+              <li Class="QuestNode_GiveRewards">
+                <parms>
+                  <allowGoodwill>true</allowGoodwill>
+                  <allowRoyalFavor>true</allowRoyalFavor>
+                  <chosenPawnSignal>ChosenPawnForReward</chosenPawnSignal>
+                </parms>
+                <addCampLootReward>true</addCampLootReward>
+                <customLetterLabel TKey="LetterLabelPaymentArrived">Payment arrived</customLetterLabel>
+                <customLetterText TKey="LetterTextPaymentArrived">The camp is gone.\n\nThe payment from [asker_faction_name] has arrived.</customLetterText>
+              </li>
+            </nodes>
+          </node>
+        </li>
+
+        <!-- The mod's own consequence: their nearest real settlement is set back. -->
+        <li Class="FactionDynamics.QuestNode_FDWeakenFaction">
+          <inSignal>site.AllEnemiesDefeated</inSignal>
+          <faction>$siteFaction</faction>
+          <tile>$siteTile</tile>
+          <hardship>0.3</hardship>
+        </li>
+
+        <li Class="QuestNode_End">
+          <inSignal>site.AllEnemiesDefeated</inSignal>
+          <outcome>Success</outcome>
+        </li>
+      </nodes>
+    </root>
+  </QuestScriptDef>
+
+</Defs>

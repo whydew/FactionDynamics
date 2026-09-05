@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    M4a (primary) - Destroy a real, existing hostile settlement.
+
+    Unlike the generated-outpost version of this quest, the objective here is an actual Settlement
+    that already exists on your world map: you travel there with a caravan and take it the normal
+    way, and when it falls it is gone from the world for good and its faction is set back for it.
+
+    The quest simply cannot be offered when there is no hostile settlement within range - that is
+    what QuestNode_FDPickSettlementTarget's TestRun enforces - and the outpost version fills in for
+    those worlds instead.
+  -->
+
+  <QuestScriptDef>
+    <defName>FD_StrikeRivalSettlement</defName>
+    <rootSelectionWeight>2.0</rootSelectionWeight>
+    <rootMinPoints>400</rootMinPoints>
+    <canGiveRoyalFavor>true</canGiveRoyalFavor>
+    <expireDaysRange>5~10</expireDaysRange>
+    <everAcceptableInSpace>false</everAcceptableInSpace>
+    <questNameRules>
+      <rulesStrings>
+        <li>questName->The fall of [targetSettlementName]</li>
+        <li>questName->Strike on [targetSettlementName]</li>
+        <li>questName->[asker_faction_name] against [targetFaction_name]</li>
+      </rulesStrings>
+    </questNameRules>
+    <questDescriptionRules>
+      <rulesStrings>
+        <li>questDescription->[asker_nameFull], [asker_faction_leaderTitle] of [asker_faction_name], wants [targetSettlementName] gone.
+\nIt is a real settlement of [targetFaction_name], about [targetSettlementDistance] tiles from us, and [asker_nameDef] is not asking us to raid it for loot - [asker_definite] wants it taken off the map. Form a caravan, go there, and destroy the place.
+\nIf we manage it, [targetFaction_name] lose that ground permanently, and they will feel it everywhere else they hold.</li>
+      </rulesStrings>
+    </questDescriptionRules>
+    <root Class="QuestNode_Sequence">
+      <nodes>
+        <li Class="FactionDynamics.QuestNode_FDGate">
+          <module>raiding</module>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_RandomizePointsChallengeRating</def>
+        </li>
+
+        <li Class="QuestNode_GetMap" />
+
+        <li Class="QuestNode_GetPawn">
+          <storeAs>asker</storeAs>
+          <mustBeFactionLeader>true</mustBeFactionLeader>
+          <mustBeNonHostileToPlayer>true</mustBeNonHostileToPlayer>
+          <allowPermanentEnemyFaction>false</allowPermanentEnemyFaction>
+        </li>
+
+        <!-- Picks a real settlement, and fails the whole quest if there isn't one in range. -->
+        <li Class="FactionDynamics.QuestNode_FDPickSettlementTarget">
+          <maxTiles>90</maxTiles>
+        </li>
+
+        <li Class="QuestNode_SubScript">
+          <def>Util_GetDefaultRewardValueFromPoints</def>
+        </li>
+
+        <!-- Taking a real base is a far bigger job than clearing a camp, and pays like it. -->
+        <li Class="QuestNode_Multiply">
+          <value1>$rewardValue</value1>
+          <value2>2.25</value2>
+          <storeAs>rewardValue</storeAs>
+        </li>
+
+        <li Class="QuestNode_Signal">
+          <inSignal>fdSettlementDefeated</inSignal>
+          <node Class="QuestNode_Sequence">
+            <nodes>
+              <li Class="QuestNode_GiveRewards">
+                <parms>
+                  <allowGoodwill>true</allowGoodwill>
+                  <allowRoyalFavor>true</allowRoyalFavor>
+                </parms>
+                <customLetterLabel TKey="FDLetterLabelSettlementTaken">Settlement destroyed</customLetterLabel>
+                <customLetterText TKey="FDLetterTextSettlementTaken">[targetSettlementName] is gone.\n\n[asker_faction_name] have paid, and [targetFaction_name] have lost that ground for good.</customLetterText>
+              </li>
+            </nodes>
+          </node>
+        </li>
+
+        <!-- The faction reels from losing a whole settlement, not just a camp. -->
+        <li Class="FactionDynamics.QuestNode_FDWeakenFaction">
+          <inSignal>fdSettlementDefeated</inSignal>
+          <faction>$targetFaction</faction>
+          <tile>$targetTile</tile>
+          <hardship>0.45</hardship>
+        </li>
+
+        <li Class="QuestNode_End">
+          <inSignal>fdSettlementDefeated</inSignal>
+          <outcome>Success</outcome>
+        </li>
+      </nodes>
+    </root>
+  </QuestScriptDef>
+
+</Defs>

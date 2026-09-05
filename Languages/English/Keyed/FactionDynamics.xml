@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+
+  <!-- ================= Settlements (M1) ================= -->
+  <FD_LetterSettlementFoundedLabel>New settlement: {0}</FD_LetterSettlementFoundedLabel>
+  <FD_LetterSettlementFoundedText>{0} have founded a new settlement, {1}, not far from your colony.\n\nA new neighbour means new trade - and a new place raids can come from.</FD_LetterSettlementFoundedText>
+
+  <FD_LetterSettlementExpandedLabel>Settlement expansion: {0}</FD_LetterSettlementExpandedLabel>
+  <FD_LetterSettlementExpandedText>{0} have expanded, settling {1} on the edge of their territory.\n\nTheir reach is growing.</FD_LetterSettlementExpandedText>
+
+  <FD_LetterSettlementCollapsedLabel>Settlement collapsed: {0}</FD_LetterSettlementCollapsedLabel>
+  <FD_LetterSettlementCollapsedText>{0} has collapsed. Weakened by losses it never recovered from, {1} could no longer hold the place, and its people have scattered.</FD_LetterSettlementCollapsedText>
+
+  <FD_LetterSettlementAbandonedLabel>Settlement abandoned: {0}</FD_LetterSettlementAbandonedLabel>
+  <FD_LetterSettlementAbandonedText>{0} has been abandoned. {1} pulled back from it, leaving the site empty.</FD_LetterSettlementAbandonedText>
+
+  <FD_LetterCapitalMovedLabel>New seat of power: {0}</FD_LetterCapitalMovedLabel>
+  <FD_LetterCapitalMovedText>With their old seat gone, {0} have moved their capital to {1}.\n\nWhatever authority they still have is exercised from there now.</FD_LetterCapitalMovedText>
+
+  <FD_InspectCapital>Capital of {0}</FD_InspectCapital>
+  <FD_InspectFactionMood>{0} (faction): hardship {1}, grudge {2}</FD_InspectFactionMood>
+  <FD_InspectSettlementHardship>This settlement: hardship {0}</FD_InspectSettlementHardship>
+  <FD_InspectRegrouping>Regrouping after a raid ({0} days)</FD_InspectRegrouping>
+  <FD_InspectThriving>Thriving</FD_InspectThriving>
+  <FD_InspectStruggling>Struggling</FD_InspectStruggling>
+
+  <!-- ================= Raids (M2 / M3) ================= -->
+  <FD_RaidOriginText>The raiders came from {0}, about {1} tiles away.</FD_RaidOriginText>
+  <FD_TheRaiders>the raiders</FD_TheRaiders>
+
+  <FD_MotivationStarvationLetter>These people are starving. They are not here to wipe you out - they are here for your food, and they will run for the map edge the moment they have enough of it, or the moment it starts costing them lives.</FD_MotivationStarvationLetter>
+  <FD_MotivationPlunderLetter>This is a plundering run. They want whatever they can carry, and they will not stay to fight once their arms are full.</FD_MotivationPlunderLetter>
+  <FD_MotivationRevengeLetter>{0} have come for revenge. They are not looting and they are not leaving early - they are here to hurt you.</FD_MotivationRevengeLetter>
+
+  <FD_MessageRaidersLooting>{0} are breaking off to loot.</FD_MessageRaidersLooting>
+  <FD_MessageRaidersGotWhatTheyCameFor>{0} have what they came for and are leaving.</FD_MessageRaidersGotWhatTheyCameFor>
+  <FD_MessageRaidersBrokeOff>{0} have taken too many losses and are breaking off.</FD_MessageRaidersBrokeOff>
+  <FD_MessageRaidersGivingUp>{0} have given up and are leaving.</FD_MessageRaidersGivingUp>
+  <FD_MessageRaidersSatisfied>{0} are satisfied with the damage done and are leaving.</FD_MessageRaidersSatisfied>
+
+  <!-- ================= Faction mood UI ================= -->
+  <FD_FactionMoodLine>Hardship {0}  ·  Grudge {1}</FD_FactionMoodLine>
+  <FD_FactionMoodTip>Hardship {0} - the average across this faction's settlements, weighted toward the ones near your colony, since those are the ones that can reach you. Each settlement carries its own: it climbs through that settlement's winter, while it regroups from a costly raid, and when the faction loses ground nearby, and fades otherwise. A raid arrives starving based on the hardship of the settlement that sent it, not this average.\n\nGrudge {1} - what they hold against you personally. It climbs when you kill or capture their people and when you take their ground, and falls when you improve relations with them. High grudge brings revenge raids that fight to the end.</FD_FactionMoodTip>
+
+</LanguageData>

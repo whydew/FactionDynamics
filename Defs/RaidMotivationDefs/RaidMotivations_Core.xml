@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Raid motivations. A motivation is only offered when the faction is genuinely in that state
+    (hardship for starvation, grudge for revenge), so the reason the raid letter gives the player
+    is always something that actually happened in their game.
+
+    lootGoalPerRaider units:
+      Food      - nutrition (a simple meal is 0.9, a packaged survival meal 0.8)
+      Valuables - silver-equivalent market value
+  -->
+
+  <FactionDynamics.FDRaidMotivationDef>
+    <defName>FD_Starvation</defName>
+    <label>starving</label>
+    <description>This faction is short of food and has come to take yours. They will make for your food stores, and leave as soon as they are carrying enough - or as soon as it starts costing them people.</description>
+    <settingKey>starvation</settingKey>
+    <weight>1.2</weight>
+    <lootCategory>Food</lootCategory>
+    <lootDuty>FD_LootFood</lootDuty>
+    <lootGoalPerRaider>6</lootGoalPerRaider>
+    <lootPhaseStartTicks>900</lootPhaseStartTicks>
+    <fleeAtLossFraction>0.25</fleeAtLossFraction>
+    <timeoutTicks>15000~22000</timeoutTicks>
+    <pointsFactor>0.85</pointsFactor>
+    <canKidnap>false</canKidnap>
+    <minHardship>0.25</minHardship>
+    <!-- They arrive actually starving: empty bellies and real malnutrition, which also drags their
+         mood down. Without this the "starving raid" was only a line of letter text. -->
+    <pawnHediff>Malnutrition</pawnHediff>
+    <pawnHediffSeverity>0.2~0.5</pawnHediffSeverity>
+    <pawnFoodLevel>0.02~0.14</pawnFoodLevel>
+    <letterSuffixKey>FD_MotivationStarvationLetter</letterSuffixKey>
+  </FactionDynamics.FDRaidMotivationDef>
+
+  <FactionDynamics.FDRaidMotivationDef>
+    <defName>FD_Plunder</defName>
+    <label>plundering</label>
+    <description>They are here for anything valuable that is not nailed down. Expect them to grab what they can carry and run for the map edge rather than fight to the last.</description>
+    <settingKey>plunder</settingKey>
+    <weight>1.0</weight>
+    <lootCategory>Valuables</lootCategory>
+    <lootDuty>FD_LootValuables</lootDuty>
+    <lootGoalPerRaider>120</lootGoalPerRaider>
+    <lootPhaseStartTicks>1500</lootPhaseStartTicks>
+    <fleeAtLossFraction>0.35</fleeAtLossFraction>
+    <timeoutTicks>18000~26000</timeoutTicks>
+    <pointsFactor>1.0</pointsFactor>
+    <canKidnap>false</canKidnap>
+    <letterSuffixKey>FD_MotivationPlunderLetter</letterSuffixKey>
+  </FactionDynamics.FDRaidMotivationDef>
+
+  <FactionDynamics.FDRaidMotivationDef>
+    <defName>FD_Revenge</defName>
+    <label>seeking revenge</label>
+    <description>You have hurt these people, and they have come to settle it. They are not here to loot, they will not break off easily, and they will drag your colonists away if they can.</description>
+    <settingKey>revenge</settingKey>
+    <weight>1.0</weight>
+    <lootCategory>None</lootCategory>
+    <lootGoalPerRaider>0</lootGoalPerRaider>
+    <fleeAtLossFraction>0.75</fleeAtLossFraction>
+    <timeoutTicks>30000~45000</timeoutTicks>
+    <pointsFactor>1.15</pointsFactor>
+    <canKidnap>true</canKidnap>
+    <useColonyDamageSatisfaction>true</useColonyDamageSatisfaction>
+    <minGrudge>0.3</minGrudge>
+    <letterSuffixKey>FD_MotivationRevengeLetter</letterSuffixKey>
+  </FactionDynamics.FDRaidMotivationDef>
+
+</Defs>

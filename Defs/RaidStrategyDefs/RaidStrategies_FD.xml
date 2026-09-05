@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    The strategy motivated raids run on. It is only ever assigned deliberately by this mod, with a
+    motivation attached. Arrival modes mirror ImmediateAttack so any arrival vanilla picked stays
+    valid after we swap the strategy in.
+
+    The selection weight is deliberately tiny rather than zero. RaidStrategyWorker.CanUseWith
+    early-outs when SelectionWeightForFaction returns <= 0, and that method is not virtual - so a
+    weight of exactly 0 makes the strategy not just unpickable but *unusable*, and every motivated
+    raid silently falls back to vanilla. A near-zero weight satisfies that check while making random
+    selection vanishingly unlikely, and the worker's own CanUseWith refuses outright unless this mod
+    put a motivation in context, so vanilla can never actually land on it.
+  -->
+  <RaidStrategyDef>
+    <defName>FD_MotivatedAssault</defName>
+    <workerClass>FactionDynamics.RaidStrategyWorker_FDMotivated</workerClass>
+    <selectionWeightPerPointsCurve>
+      <points>
+        <li>(0, 0.0001)</li>
+      </points>
+    </selectionWeightPerPointsCurve>
+    <pointsFactorCurve>
+      <points>
+        <li>0, 1</li>
+      </points>
+    </pointsFactorCurve>
+    <arriveModes>
+      <li>EdgeDrop</li>
+      <li>EdgeWalkIn</li>
+      <li>CenterDrop</li>
+      <li>RandomDrop</li>
+      <li>EdgeDropGroups</li>
+      <li>EdgeWalkInGroups</li>
+      <!-- Big raids often resolve to the distributed walk-in; without it here the strategy gets
+           rejected and the raid silently falls back to vanilla behaviour. -->
+      <li>EdgeWalkInDistributed</li>
+      <li MayRequire="Ludeon.RimWorld.Anomaly">EdgeWalkInDistributedGroups</li>
+      <li MayRequire="Ludeon.RimWorld.Anomaly">EdgeWalkInDarkness</li>
+    </arriveModes>
+    <letterLabelEnemy>Raid</letterLabelEnemy>
+    <arrivalTextEnemy>They are attacking immediately.</arrivalTextEnemy>
+    <letterLabelFriendly>Friendlies</letterLabelFriendly>
+    <arrivalTextFriendly>They are moving in to help you immediately.</arrivalTextFriendly>
+  </RaidStrategyDef>
+
+</Defs>
