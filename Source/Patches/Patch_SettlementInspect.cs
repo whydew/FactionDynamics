@@ -32,32 +32,26 @@ namespace FactionDynamics
             }
 
             // The owning faction's mood, so the world map explains why raids from here look the way
-            // they do without the player having to open the Factions tab. Named explicitly,
-            // because the settlement's own hardship follows on the next line and two bare
-            // "Hardship 100%" lines in a row told the player nothing about which was which.
+            // they do without the player having to open the Factions tab.
             if (FDFactionMoodUI.HasAnythingToShow(__instance.Faction, out float hardship, out float grudge))
             {
                 if (sb.Length > 0) sb.AppendLine();
-                sb.Append(FDFactionMoodUI.MoodLineFor(__instance.Faction, hardship, grudge));
+                sb.Append(FDFactionMoodUI.MoodLine(hardship, grudge));
             }
 
             SettlementRuntimeData data = comp.GetSettlementData(__instance, false);
-
-            // This settlement's own hardship, which is what decides whether raids *from here*
-            // arrive starving - not the faction average. Always printed, including at zero: "this
-            // town is fine" is as useful to know as "this town is starving", and a line that only
-            // appears above some invisible threshold reads as a bug.
-            //
-            // Read-only lookup, so a settlement we have not evaluated yet reports 0% rather than
-            // having runtime data created for it from a draw path.
-            if (sb.Length > 0) sb.AppendLine();
-            sb.Append("FD_InspectSettlementHardship".Translate(
-                (data != null && data.hardshipInitialized ? data.hardship : 0f).ToStringPercent()));
-
             if (data == null)
             {
                 __result = sb.ToString();
                 return;
+            }
+
+            // This settlement's own hardship, which is what decides whether raids *from here*
+            // arrive starving - not the faction average.
+            if (data.hardshipInitialized && data.hardship >= 0.05f)
+            {
+                if (sb.Length > 0) sb.AppendLine();
+                sb.Append("FD_InspectSettlementHardship".Translate(data.hardship.ToStringPercent()));
             }
 
             if (data.IsRegrouping(now))

@@ -2,29 +2,67 @@
 <Defs>
 
   <!--
-    Loot duties for motivated raids. Same shape as vanilla's Steal duty, with two changes:
-      1. our own JobGiver, which filters targets by category (food vs. valuables);
-      2. a fight-back node underneath it, because unlike vanilla's opportunistic steal (which peels
-         off single pawns) a motivated raid puts the whole group on this duty - without it, raiders
-         would walk past a firefight with their arms full.
+    Loot duties for motivated raids.
 
-    Node order matters: the loot JobGiver returns null when the pawn is in dangerous combat, so a
-    raider under fire falls through to fighting, then leaves when there is nothing left to grab.
+    These raiders are here for the food (or the valuables), NOT for a fight. They are thieves, and
+    the whole point of the motivation is that a starvation raid reads differently from an assault:
+    they walk in, take what they came for, and leave. They do not pick fights - not with a colonist
+    standing next to them, not with one across the room. Hit them and they will fight back; leave
+    them alone and they will rob you and go.
+
+    Node order is the design. ThinkNode_Priority takes the first subnode that returns a job, so
+    only what is above the loot node can beat looting:
+
+      1. combat drugs (no aggression of its own, and every vanilla combat duty leads with it);
+      2. HARMED RECENTLY -> fight back, out to 65 tiles, turrets included. This is the ONLY thing
+         that makes them aggressive, and it is what the player controls: shoot them and they turn
+         on you. Vanilla's Breaching duty uses the same ThinkNode_HarmedRecently wrapper;
+      3. loot;
+      4. nothing left worth taking -> leave.
+
+    Two earlier versions of this file got the balance wrong in opposite directions, both worth
+    remembering:
+
+      * a single fight node BELOW the loot node with a 20-tile radius - looting outranked fighting,
+        so a raider being shot kept walking to the stockpile;
+      * fixing that by adding an UNCONDITIONAL 12-tile fight node above the loot node, plus a
+        65-tile one below it - which made them attack colonists on sight and turned every
+        starvation raid back into an ordinary assault.
+
+    There is deliberately no unprovoked-combat node now, and no fight node below the loot node
+    either. A raider who has nothing left to steal leaves; they do not go looking for a fight on
+    the way out.
+
+    The other half of this lives in JobGiver_FDSteal: the Steal job it hands out carries an
+    expiryInterval with checkOverrideOnExpire, so a steal already in progress is re-checked against
+    this tree every two seconds instead of running to completion. Without that, the ordering above
+    would only ever apply to raiders who happened to be between jobs.
   -->
 
   <DutyDef>
     <defName>FD_LootFood</defName>
+    <alwaysShowWeapon>true</alwaysShowWeapon>
     <thinkNode Class="ThinkNode_Priority">
       <subNodes>
         <li Class="JobGiver_TakeCombatEnhancingDrug" />
+
+        <li Class="ThinkNode_HarmedRecently">
+          <thresholdTicks>600</thresholdTicks>
+          <subNodes>
+            <li Class="JobGiver_AIFightEnemies"> <!-- shot at: fight back. the only aggression here -->
+              <targetAcquireRadius>65</targetAcquireRadius>
+              <targetKeepRadius>72</targetKeepRadius>
+              <needLOSToAcquireNonPawnTargets>true</needLOSToAcquireNonPawnTargets>
+              <allowTurrets>true</allowTurrets>
+            </li>
+          </subNodes>
+        </li>
+
         <li Class="FactionDynamics.JobGiver_FDSteal">
           <lootCategory>Food</lootCategory>
-          <searchRadius>40</searchRadius>
+          <searchRadius>9999</searchRadius>
         </li>
-        <li Class="JobGiver_AIFightEnemies">
-          <targetAcquireRadius>20</targetAcquireRadius>
-          <targetKeepRadius>26</targetKeepRadius>
-        </li>
+
         <li Class="JobGiver_ExitMapBest">
           <defaultLocomotion>Jog</defaultLocomotion>
           <jobMaxDuration>200</jobMaxDuration>
@@ -36,17 +74,28 @@
 
   <DutyDef>
     <defName>FD_LootValuables</defName>
+    <alwaysShowWeapon>true</alwaysShowWeapon>
     <thinkNode Class="ThinkNode_Priority">
       <subNodes>
         <li Class="JobGiver_TakeCombatEnhancingDrug" />
+
+        <li Class="ThinkNode_HarmedRecently">
+          <thresholdTicks>600</thresholdTicks>
+          <subNodes>
+            <li Class="JobGiver_AIFightEnemies"> <!-- shot at: fight back. the only aggression here -->
+              <targetAcquireRadius>65</targetAcquireRadius>
+              <targetKeepRadius>72</targetKeepRadius>
+              <needLOSToAcquireNonPawnTargets>true</needLOSToAcquireNonPawnTargets>
+              <allowTurrets>true</allowTurrets>
+            </li>
+          </subNodes>
+        </li>
+
         <li Class="FactionDynamics.JobGiver_FDSteal">
           <lootCategory>Valuables</lootCategory>
-          <searchRadius>40</searchRadius>
+          <searchRadius>9999</searchRadius>
         </li>
-        <li Class="JobGiver_AIFightEnemies">
-          <targetAcquireRadius>20</targetAcquireRadius>
-          <targetKeepRadius>26</targetKeepRadius>
-        </li>
+
         <li Class="JobGiver_ExitMapBest">
           <defaultLocomotion>Jog</defaultLocomotion>
           <jobMaxDuration>200</jobMaxDuration>

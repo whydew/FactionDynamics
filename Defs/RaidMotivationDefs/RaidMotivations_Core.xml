@@ -6,8 +6,11 @@
     (hardship for starvation, grudge for revenge), so the reason the raid letter gives the player
     is always something that actually happened in their game.
 
-    lootGoalPerRaider units:
-      Food      - nutrition (a simple meal is 0.9, a packaged survival meal 0.8)
+    lootGoalPerRaider units, counted ONLY against what they take off the player's map - never
+    against what they arrived carrying:
+      Food      - nutrition (a simple meal is 0.9, a packaged survival meal 0.8), so 15 is about
+                  17 simple meals per raider: more than the single stack one trip carries, so a
+                  group has to make a real dent before it decides it has enough
       Valuables - silver-equivalent market value
   -->
 
@@ -19,8 +22,7 @@
     <weight>1.2</weight>
     <lootCategory>Food</lootCategory>
     <lootDuty>FD_LootFood</lootDuty>
-    <lootGoalPerRaider>6</lootGoalPerRaider>
-    <lootPhaseStartTicks>900</lootPhaseStartTicks>
+    <lootGoalPerRaider>15</lootGoalPerRaider>
     <fleeAtLossFraction>0.25</fleeAtLossFraction>
     <timeoutTicks>15000~22000</timeoutTicks>
     <pointsFactor>0.85</pointsFactor>
@@ -29,8 +31,31 @@
     <!-- They arrive actually starving: empty bellies and real malnutrition, which also drags their
          mood down. Without this the "starving raid" was only a line of letter text. -->
     <pawnHediff>Malnutrition</pawnHediff>
-    <pawnHediffSeverity>0.2~0.5</pawnHediffSeverity>
+    <!--
+      Malnutrition stages (vanilla, Hediffs_Global_Needs.xml):
+        0.0-0.2 trivial   0.2-0.4 minor   0.4-0.6 moderate   0.6-0.8 severe   0.8+ extreme
+      This spans minor through severe, so raiders arrive visibly starved to different degrees
+      rather than all reading "moderate".
+
+      It deliberately stops just short of 0.8. The extreme stage sets Consciousness to a MAXIMUM
+      of 0.1, and PawnCapacitiesHandler.CanBeAwake requires Consciousness >= 0.3 - so a raider at
+      extreme malnutrition collapses unconscious the instant they spawn. Raising this above 0.79
+      does not make a scarier raid, it makes one where some raiders fall over on arrival.
+    -->
+    <pawnHediffSeverity>0.2~0.79</pawnHediffSeverity>
+    <!-- The origin settlement's own hardship picks where in that envelope this raid lands: a town
+         at 90% hardship sends people near severe, a town at 20% sends people barely marked. The
+         jitter keeps the group from all reading identically. -->
+    <pawnHediffHardshipWeight>1.0</pawnHediffHardshipWeight>
+    <pawnHediffJitter>0.12</pawnHediffJitter>
+    <!-- One raider in ten raids is someone they should not have brought: extreme malnutrition caps
+         Consciousness below the awake threshold, so they collapse on arrival. At most one per raid. -->
+    <collapsedRaiderChance>0.10</collapsedRaiderChance>
+    <collapsedRaiderSeverity>0.82~0.95</collapsedRaiderSeverity>
     <pawnFoodLevel>0.02~0.14</pawnFoodLevel>
+    <!-- Vanilla hands raiders travel rations. A starving band would have eaten theirs days ago,
+         and leaving them in also fed the raid's own loot goal before it started. -->
+    <arriveWithoutFood>true</arriveWithoutFood>
     <letterSuffixKey>FD_MotivationStarvationLetter</letterSuffixKey>
   </FactionDynamics.FDRaidMotivationDef>
 
@@ -42,8 +67,7 @@
     <weight>1.0</weight>
     <lootCategory>Valuables</lootCategory>
     <lootDuty>FD_LootValuables</lootDuty>
-    <lootGoalPerRaider>120</lootGoalPerRaider>
-    <lootPhaseStartTicks>1500</lootPhaseStartTicks>
+    <lootGoalPerRaider>300</lootGoalPerRaider>
     <fleeAtLossFraction>0.35</fleeAtLossFraction>
     <timeoutTicks>18000~26000</timeoutTicks>
     <pointsFactor>1.0</pointsFactor>
