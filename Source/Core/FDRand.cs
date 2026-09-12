@@ -84,5 +84,7 @@ namespace FactionDynamics
         public const int RaidMotivation = 3001;
         public const int RaidRegroup = 3002;
         public const int QuestBounty = 4001;
+        public const int StorytellerSpeak = 5001;
+        public const int Tribute = 5002;
     }
 }

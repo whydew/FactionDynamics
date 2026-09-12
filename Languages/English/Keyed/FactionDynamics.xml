@@ -38,6 +38,24 @@
   <FD_MessageRaidersGivingUp>{0} have given up and are leaving.</FD_MessageRaidersGivingUp>
   <FD_MessageRaidersSatisfied>{0} are satisfied with the damage done and are leaving.</FD_MessageRaidersSatisfied>
 
+  <!-- ================= Goodwill situations (P1) =================
+       These are the lines vanilla prints in the Factions tab's goodwill explanation, one per
+       active situation. They carry live numbers on purpose: the pane doubles as the readout for
+       whether FD's state is reaching the engine at all. -->
+  <FD_GoodwillGrudge>Bears a grudge ({0}) - relations capped at {1}</FD_GoodwillGrudge>
+  <FD_GoodwillHardship>Desperate ({0}) - goodwill drifting {1}</FD_GoodwillHardship>
+
+  <!-- ================= Tribute (P1) ================= -->
+  <FD_TributeLetterLabel>Tribute demanded: {0}</FD_TributeLetterLabel>
+  <FD_TributeLetterText>A messenger arrives from {0}, and does not pretend to be here for trade.\n\nTheir people are going hungry, and they have decided your colony can afford to help. They want {1} silver. They have not said what happens if you refuse, which is its own kind of answer.\n\nPay, and they will remember it. Refuse, and so will they.</FD_TributeLetterText>
+  <FD_TributeAccept>Pay the {0} silver</FD_TributeAccept>
+  <FD_TributeNotEnoughSilver>You need {0} silver, available to a caravan or in a stockpile.</FD_TributeNotEnoughSilver>
+  <FD_TributePaidLabel>Tribute paid</FD_TributePaidLabel>
+  <FD_TributePaidText>{0} silver has gone to {1}. Their messenger leaves without saying much.\n\nThey will not forget that you paid - though some of them will remember it as weakness rather than goodwill.</FD_TributePaidText>
+  <FD_TributeRefusedLabel>Tribute refused</FD_TributeRefusedLabel>
+  <FD_TributeRefusedText>You send {0}'s messenger away empty-handed.\n\nThey were desperate enough to ask. They are unlikely to take the answer well.</FD_TributeRefusedText>
+  <FD_MessageTributeExpired>{0}'s messenger has given up waiting for an answer.</FD_MessageTributeExpired>
+
   <!-- ================= Faction mood UI ================= -->
   <FD_FactionMoodLine>Hardship {0}  ·  Grudge {1}</FD_FactionMoodLine>
   <FD_FactionMoodTip>Hardship {0} - the average across this faction's settlements, weighted toward the ones near your colony, since those are the ones that can reach you. Each settlement carries its own: it climbs through that settlement's winter, while it regroups from a costly raid, and when the faction loses ground nearby, and fades otherwise. A raid arrives starving based on the hardship of the settlement that sent it, not this average.\n\nGrudge {1} - what they hold against you personally. It climbs when you kill or capture their people and when you take their ground, and falls when you improve relations with them. High grudge brings revenge raids that fight to the end.</FD_FactionMoodTip>

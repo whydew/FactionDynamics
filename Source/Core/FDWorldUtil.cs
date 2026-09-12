@@ -83,7 +83,13 @@ namespace FactionDynamics
             return false;
         }
 
-        private static bool QuestDependsOn(Settlement settlement)
+        /// <summary>
+        /// Does a live quest point at this settlement? Public because the garrison thinner needs the
+        /// same question answered at map-gen time, where <see cref="IsProtected"/> cannot be used -
+        /// that method returns true for anything with a map, which is every settlement we are about
+        /// to walk into.
+        /// </summary>
+        public static bool QuestDependsOn(Settlement settlement)
         {
             List<Quest> quests = Find.QuestManager.QuestsListForReading;
             for (int i = 0; i < quests.Count; i++)

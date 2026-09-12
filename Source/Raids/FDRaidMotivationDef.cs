@@ -42,8 +42,10 @@ namespace FactionDynamics
         /// <summary>Hard "we're done here" timer, as vanilla assault raids have.</summary>
         public IntRange timeoutTicks = new IntRange(20000, 30000);
 
-        /// <summary>Ticks of straight fighting before they switch to looting. 0 = loot immediately.</summary>
-        public int lootPhaseStartTicks = 1500;
+        // Removed: lootPhaseStartTicks. A raid with a loot motivation now starts in its loot toil
+        // rather than opening with a timed assault phase - see LordJob_FDMotivatedRaid.CreateGraph.
+        // The delay was the reason starving raiders shot colonists on sight for the first fifteen
+        // seconds of every raid.
 
         /// <summary>Raid size multiplier - desperate raids are usually smaller, revenge raids bigger.</summary>
         public float pointsFactor = 1f;
@@ -71,10 +73,60 @@ namespace FactionDynamics
         /// </summary>
         public HediffDef pawnHediff;
 
+        /// <summary>
+        /// The envelope severity can fall in. Where inside it a given raid lands is decided by the
+        /// origin settlement's hardship - see <see cref="pawnHediffHardshipWeight"/>.
+        /// </summary>
         public FloatRange pawnHediffSeverity = new FloatRange(0.2f, 0.45f);
+
+        /// <summary>
+        /// How strongly the origin settlement's own hardship steers severity inside
+        /// <see cref="pawnHediffSeverity"/>.
+        ///
+        /// 1 = hardship picks the centre outright: a raid from a town at 90% hardship arrives near
+        /// the top of the range, one from a town at 20% near the bottom. 0 = ignore hardship and
+        /// centre on the middle of the range, which is the old flat-random behaviour.
+        ///
+        /// This is what makes the hardship figure mean something you can see. Before it, a raid
+        /// from a desperate settlement and a raid from a comfortable one produced identically
+        /// starved pawns, and the number on the world map was disconnected from the people it
+        /// supposedly described.
+        /// </summary>
+        public float pawnHediffHardshipWeight = 1f;
+
+        /// <summary>
+        /// Per-pawn spread either side of the hardship-derived centre, so raiders in one group are
+        /// not all stamped with the same severity.
+        /// </summary>
+        public float pawnHediffJitter = 0.12f;
+
+        /// <summary>
+        /// Chance that ONE raider in the group is someone the faction should not have sent - too
+        /// far gone to stand up. At most one per raid, deliberately.
+        ///
+        /// Severity in the extreme band caps Consciousness at 0.1, and CanBeAwake needs 0.3, so
+        /// this pawn collapses on arrival. As a rare beat that reads as desperation; as a common
+        /// one it would just look broken, which is why it is capped at a single raider and why the
+        /// ordinary severity range stops short of the extreme stage.
+        /// </summary>
+        public float collapsedRaiderChance;
+
+        /// <summary>Severity used for that one collapsed raider. Kept clear of the 1.0 death line.</summary>
+        public FloatRange collapsedRaiderSeverity = new FloatRange(0.82f, 0.95f);
 
         /// <summary>Food need set on arrival, as a 0-1 fraction. Negative = leave it alone.</summary>
         public FloatRange pawnFoodLevel = new FloatRange(-1f, -1f);
+
+        /// <summary>
+        /// Strip every scrap of food out of the raiders' inventories on arrival.
+        ///
+        /// Vanilla's pawn generator hands raiders travel rations - usually pemmican - which makes
+        /// a starvation raid absurd on inspection: an empty-bellied, malnourished raider showing up
+        /// with three days of food in his pack. It also quietly broke the loot goal, since the
+        /// rations counted toward the nutrition the raid was trying to collect, so they arrived
+        /// part of the way to "we have enough" and could turn round early.
+        /// </summary>
+        public bool arriveWithoutFood;
 
         /// <summary>Translation key appended to the raid letter, explaining why they came.</summary>
         public string letterSuffixKey;

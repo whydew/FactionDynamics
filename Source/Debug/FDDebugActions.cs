@@ -26,8 +26,12 @@ namespace FactionDynamics
     ///
     /// These deliberately bypass the normal preconditions (a starvation raid needs a faction with
     /// real hardship; a quest needs to win its selection roll), because the point is to see the
-    /// behaviour now. In a Multiplayer session they are unsynced local actions like any other dev
-    /// tool, and will desync a live session - the log says so when you use one.
+    /// behaviour now.
+    ///
+    /// Anything that changes simulation state refuses to run in a live Multiplayer session. None of
+    /// it goes through Multiplayer's sync layer, so it would mutate the world on one client only and
+    /// break the session from that tick on. Read-only tools - the state dump, the loot-search
+    /// explainer - stay available, because looking at the world cannot diverge it.
     /// </summary>
     public static class FDDebugActions
     {
@@ -49,7 +53,7 @@ namespace FactionDynamics
                 m => m == null ? "(no motivation - vanilla raid)" : m.defName + "  -  " + m.label,
                 m =>
                 {
-                    WarnIfMultiplayer();
+                    if (BlockedInMultiplayer()) return;
                     FDDebug.ForcedMotivation = m;
                     try
                     {
@@ -71,7 +75,7 @@ namespace FactionDynamics
                      + FDRaidGeography.DistanceToFaction(f, Find.CurrentMap.Tile).ToString("F0") + " tiles",
                 f =>
                 {
-                    WarnIfMultiplayer();
+                    if (BlockedInMultiplayer()) return;
                     FireRaid(f);
                 });
         }
@@ -86,7 +90,7 @@ namespace FactionDynamics
             if (faction != null) parms.faction = faction;
 
             bool fired = IncidentDefOf.RaidEnemy.Worker.TryExecute(parms);
-            FDLog.Message("Debug raid " + (fired ? "fired" : "FAILED to fire")
+            FDLog.Toast("Debug raid " + (fired ? "fired" : "FAILED to fire")
                           + " (points " + parms.points.ToString("F0") + ").");
         }
 
@@ -103,6 +107,8 @@ namespace FactionDynamics
                 f => FactionLabelWithMood(comp, f),
                 f =>
                 {
+                    if (BlockedInMultiplayer()) return;
+
                     // Hardship lives on the settlements now, and the faction figure is their
                     // average - so set the settlements, or the next lifecycle check would recompute
                     // this straight back down.
@@ -115,9 +121,48 @@ namespace FactionDynamics
                     }
 
                     comp.GetFactionData(f).hardship = 1f;
-                    FDLog.Message(f.Name + " hardship set to 100% across " + settlements.Count
+                    FDLog.Toast(f.Name + " hardship set to 100% across " + settlements.Count
                                   + " settlements - starvation raids are now available from them.");
                 });
+        }
+
+        // ------------------------------------------------------------------ diplomacy
+
+        /// <summary>
+        /// Fire a tribute demand now, from a faction of your choosing.
+        ///
+        /// Without this the only way to see the letter is to wait for the storyteller comp's 15%
+        /// roll to land in a 2500-tick window while some faction happens to be desperate, nearby and
+        /// off cooldown. That is the right frequency for play and a useless one for testing.
+        ///
+        /// This deliberately goes through IncidentWorker_FDTribute.TryExecute rather than building
+        /// the letter directly, so the thing being tested is the real path - candidate filtering,
+        /// seeded rolls, silver scaling and the history record all included.
+        /// </summary>
+        [DebugAction(Cat, "Diplomacy: demand tribute now...", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void ForceTribute()
+        {
+            Map map = Find.CurrentMap;
+            if (map == null) return;
+
+            IncidentDef def = FDIncidentDefOf.FD_TributeDemand;
+            IncidentParms parms = StorytellerUtility.DefaultParmsNow(def.category, map);
+
+            if (!def.Worker.CanFireNow(parms))
+            {
+                // Say why, rather than failing silently - the answer is almost always "no faction
+                // is desperate enough yet", which points straight at the hardship debug action.
+                FDLog.Toast("No faction can demand tribute right now. They need hardship >= "
+                            + FDTributeTuning.MinHardship.ToStringPercent()
+                            + ", grudge <= " + FDTributeTuning.MaxGrudge.ToStringPercent()
+                            + ", a settlement within " + FDTributeTuning.MaxTiles
+                            + " tiles, peace with you, and no demand in the last "
+                            + FDTributeTuning.CooldownDays + " days.");
+                return;
+            }
+
+            if (!def.Worker.TryExecute(parms))
+                FDLog.Toast("Tribute incident declined to fire.");
         }
 
         [DebugAction(Cat, "Set faction grudge to max...", allowedGameStates = AllowedGameStates.Playing)]
@@ -131,8 +176,10 @@ namespace FactionDynamics
                 f => FactionLabelWithMood(comp, f),
                 f =>
                 {
+                    if (BlockedInMultiplayer()) return;
+
                     comp.GetFactionData(f).grudge = 1f;
-                    FDLog.Message(f.Name + " grudge set to 100% - revenge raids are now available from them.");
+                    FDLog.Toast(f.Name + " grudge set to 100% - revenge raids are now available from them.");
                 });
         }
 
@@ -144,9 +191,10 @@ namespace FactionDynamics
             FactionDynamicsWorldComp comp = FactionDynamicsWorldComp.Current;
             if (comp == null) return;
 
-            WarnIfMultiplayer();
+            if (BlockedInMultiplayer()) return;
             int evaluated = SettlementLifecycleWorker.DebugEvaluateAll(comp, Find.TickManager.TicksGame);
-            FDLog.Message("Ran a lifecycle check for " + evaluated + " factions - see the lines above for what happened.");
+            FDLog.Toast("Ran a lifecycle check for " + evaluated
+                        + " factions. Turn on verbose logging in mod settings for the details.");
         }
 
         [DebugAction(Cat, "Settlements: found one for faction...", allowedGameStates = AllowedGameStates.Playing)]
@@ -160,7 +208,7 @@ namespace FactionDynamics
                 f => f.Name + "  -  " + FDWorldUtil.SettlementsOf(f).Count + " settlements",
                 f =>
                 {
-                    WarnIfMultiplayer();
+                    if (BlockedInMultiplayer()) return;
                     int now = Find.TickManager.TicksGame;
                     using (FDRand.Push(f.loadID, now, FDRandSalt.SettlementFound))
                     {
@@ -181,7 +229,7 @@ namespace FactionDynamics
                 f => f.Name + "  -  " + FDWorldUtil.SettlementsOf(f).Count + " settlements",
                 f =>
                 {
-                    WarnIfMultiplayer();
+                    if (BlockedInMultiplayer()) return;
                     int now = Find.TickManager.TicksGame;
                     using (FDRand.Push(f.loadID, now, FDRandSalt.SettlementCollapse))
                     {
@@ -212,7 +260,7 @@ namespace FactionDynamics
                 s =>
                 {
                     comp.NotifyRaidSent(s, s.Faction, Find.TickManager.TicksGame);
-                    FDLog.Message(s.Label + " is now regrouping - check its world map inspect pane.");
+                    FDLog.Toast(s.Label + " is now regrouping - check its world map inspect pane.");
                 });
         }
 
@@ -234,7 +282,7 @@ namespace FactionDynamics
                 s => s,
                 defName =>
                 {
-                    WarnIfMultiplayer();
+                    if (BlockedInMultiplayer()) return;
 
                     QuestScriptDef def = DefDatabase<QuestScriptDef>.GetNamedSilentFail(defName);
                     if (def == null)
@@ -256,7 +304,7 @@ namespace FactionDynamics
                         }
 
                         QuestUtility.SendLetterQuestAvailable(quest, "DebugAction");
-                        FDLog.Message("Generated " + defName + " at " + points.ToString("F0")
+                        FDLog.Toast("Generated " + defName + " at " + points.ToString("F0")
                                       + " points - check the Quests tab.");
                     }
                     catch (System.Exception e)
@@ -271,6 +319,63 @@ namespace FactionDynamics
         }
 
         // ------------------------------------------------------------------ inspection
+
+        /// <summary>
+        /// Raise a bounty on the selected pawn immediately, skipping the sighting roll. The natural
+        /// chance is deliberately low (2% base, 3% for hostiles), which is right for play and
+        /// useless for testing the quest itself.
+        /// </summary>
+        [DebugAction(Cat, "Quests: force bounty on selected pawn", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void ForceBounty()
+        {
+            var pawn = Find.Selector.SingleSelectedThing as Pawn;
+            if (pawn == null)
+            {
+                FDLog.Toast("Select exactly one pawn first, then run this again.");
+                return;
+            }
+
+            if (!QuestNode_FDBountyTarget.IsValidTarget(pawn, Faction.OfPlayerSilentFail))
+            {
+                FDLog.Toast(pawn.LabelShortCap + " can't carry a bounty (needs to be a named, free, "
+                            + "humanlike pawn of a visible non-player faction).");
+                return;
+            }
+
+            if (BlockedInMultiplayer()) return;
+            FDLog.Toast(MapComponent_FDBountyWatcher.DebugForceBounty(pawn)
+                ? "Bounty raised on " + pawn.LabelShortCap + "."
+                : "Could not raise a bounty on " + pawn.LabelShortCap + " - see the log.");
+        }
+
+        /// <summary>
+        /// Select one raider, run this, read the log. Reports the pawn's duty, its lord toil, and a
+        /// per-filter tally of why every haulable thing on the map was or was not accepted as loot,
+        /// ending with the top candidates and whether each is reachable.
+        ///
+        /// Built after several rounds of "the raid arrives and immediately leaves", which looks
+        /// identical whether the colony is empty, a filter is too strict, the search is too short
+        /// sighted, or the food is simply unreachable.
+        /// </summary>
+        [DebugAction(Cat, "Raids: explain loot search (select a raider)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void ExplainLootSearch()
+        {
+            var pawn = Find.Selector.SingleSelectedThing as Pawn;
+            if (pawn == null)
+            {
+                FDLog.Toast("Select exactly one raider first, then run this again.");
+                return;
+            }
+
+            // Use whatever category the pawn's own duty is running, falling back to Food.
+            FDLootCategory category = FDLootCategory.Food;
+            Verse.AI.DutyDef duty = pawn.mindState?.duty?.def;
+            if (duty != null && duty.defName == "FD_LootValuables")
+                category = FDLootCategory.Valuables;
+
+            FDLog.Message(FDStealUtility.Explain(pawn, category, 9999f));
+            FDLog.Toast("Loot search explained in the log for " + pawn.LabelShort + ".");
+        }
 
         [DebugAction(Cat, "Dump mod state to log", allowedGameStates = AllowedGameStates.Playing)]
         private static void DumpState()
@@ -309,26 +414,49 @@ namespace FactionDynamics
                               + ", grudge " + fd.grudge.ToStringPercent()
                               + ", settlements " + (faction != null ? FDWorldUtil.SettlementsOf(faction).Count : 0)
                               + " (baseline " + fd.baselineSettlementCount + ")"
-                              + ", capital " + capital);
+                              + ", capital " + capital
+                              // Two halves of the same question, side by side on purpose.
+                              //
+                              // "want" is what FD's workers compute right now. "engine" is what
+                              // GoodwillSituationManager actually has cached, which it refreshes on
+                              // a 1000-tick timer. If they disagree the recache simply has not
+                              // happened yet; if they still disagree after a few thousand ticks,
+                              // the situation defs are not reaching the database and that is a very
+                              // different bug. Printing only FD's side would have hidden the
+                              // difference entirely.
+                              + ", goodwill want(cap " + FDGoodwillSituationWorker_Grudge.CapFor(fd.grudge)
+                              + "/drift " + FDGoodwillSituationWorker_Hardship.OffsetFor(fd.hardship) + ")"
+                              + (faction != null && faction.HasGoodwill
+                                  ? " engine(max " + Find.FactionManager.goodwillSituationManager.GetMaxGoodwill(faction)
+                                    + "/natural " + faction.NaturalGoodwill
+                                    + "/now " + faction.PlayerGoodwill
+                                    + (faction.HostileTo(Faction.OfPlayer) ? " HOSTILE" : "") + ")"
+                                  : " engine(n/a)"));
             }
 
             sb.AppendLine("-- settlements we track --");
             int now = Find.TickManager.TicksGame;
-            List<int> settlementIds = comp.SortedSettlementIds;
-            for (int i = 0; i < settlementIds.Count; i++)
+
+            // State lives on the settlements now, so this walks settlements rather than a key list -
+            // and the "(gone) <id>" case it used to print is gone with it, because state cannot
+            // outlive the settlement it describes any more.
+            List<Settlement> settlements = comp.SortedSettlements();
+            int untouched = 0;
+
+            for (int i = 0; i < settlements.Count; i++)
             {
-                SettlementRuntimeData sd = comp.GetSettlementData(settlementIds[i], false);
+                Settlement settlement = settlements[i];
+                SettlementRuntimeData sd = comp.GetSettlementData(settlement, false);
                 if (sd == null) continue;
 
-                Settlement settlement = null;
-                List<Settlement> all = Find.WorldObjects.Settlements;
-                for (int j = 0; j < all.Count; j++)
-                {
-                    if (all[j].ID == sd.settlementId) { settlement = all[j]; break; }
-                }
+                // Every settlement has state now that it lives on the settlement, so "tracked" no
+                // longer means "has an entry" - it means "something has actually happened here".
+                // Without this the dump printed several hundred identical lines of zeroes and buried
+                // the handful that mattered.
+                if (!IsWorthReporting(sd, now)) { untouched++; continue; }
 
-                sb.AppendLine("  " + (settlement != null ? settlement.Label : "(gone) " + sd.settlementId)
-                              + (settlement != null && FDCapitals.IsCapital(settlement) ? " [CAPITAL]" : "")
+                sb.AppendLine("  " + settlement.Label
+                              + (FDCapitals.IsCapital(settlement) ? " [CAPITAL]" : "")
                               + ": hardship " + sd.hardship.ToStringPercent()
                               + ", strength " + sd.strengthFactor.ToString("F2")
                               + ", raids sent " + sd.raidsSent
@@ -336,10 +464,38 @@ namespace FactionDynamics
                               + ", origin " + sd.origin);
             }
 
+            // Report the remainder as a count rather than dropping it silently: "24 of 490" is the
+            // number that tells you the injector attached to everything, and a sudden 0 there would
+            // mean the comp stopped being created at all.
+            sb.AppendLine("  (" + untouched + " further settlement(s) with nothing to report)");
+
+            // This one belongs in the log - writing it there is the whole point of the action.
             FDLog.Message(sb.ToString());
         }
 
         // ------------------------------------------------------------------ helpers
+
+        /// <summary>
+        /// Whether a settlement's state is worth a line in the dump.
+        ///
+        /// Before the comp refactor, having an entry in the dictionary *was* the signal - the mod
+        /// only created one when it touched a settlement. Now every settlement carries a comp from
+        /// the moment it is created, so presence means nothing and the question has to be asked of
+        /// the data: has hardship been seeded, has strength moved off 1, has it sent a raid, did we
+        /// create it, is it regrouping right now. Anything else is a default object.
+        /// </summary>
+        private static bool IsWorthReporting(SettlementRuntimeData sd, int now)
+        {
+            if (sd == null) return false;
+
+            return sd.hardshipInitialized
+                   || sd.raidsSent > 0
+                   || sd.origin != FDSettlementOrigin.Preexisting
+                   || sd.IsRegrouping(now)
+                   // Float compare against the default rather than an epsilon band: strengthFactor is
+                   // only ever assigned, never accumulated, so it is exactly 1f until something sets it.
+                   || sd.strengthFactor != 1f;
+        }
 
         private static Faction FactionById(int loadId)
         {
@@ -389,6 +545,23 @@ namespace FactionDynamics
         {
             if (MultiplayerCompat.InMultiplayer)
                 FDLog.Warning("Dev action used in a Multiplayer session - this runs locally only and will desync.");
+        }
+
+        /// <summary>
+        /// True when a dev action that CHANGES simulation state must not run.
+        ///
+        /// Warning about the desync after the fact was never much use: none of these actions are
+        /// routed through Multiplayer's sync layer, so they mutate the world on one client only and
+        /// the session is broken from that tick onward - no amount of log text undoes it. Read-only
+        /// actions (state dumps, the loot-search explainer) are unaffected and stay available.
+        /// </summary>
+        private static bool BlockedInMultiplayer()
+        {
+            if (!MultiplayerCompat.InMultiplayer) return false;
+
+            FDLog.Toast("That dev action changes world state and is disabled in a Multiplayer "
+                        + "session - running it on one client only would desync the game.");
+            return true;
         }
     }
 }

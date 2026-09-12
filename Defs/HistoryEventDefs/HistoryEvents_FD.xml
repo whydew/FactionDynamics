@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    maxRemembered is set so HistoryEventsManager keeps enough of these to answer
+    GetRecentCountWithinTicks over the tribute cooldown window. Left at the default (0) the manager
+    records the event for ideos but keeps no history, and the cooldown check below would always see
+    zero and never rate-limit anything.
+  -->
+
+  <HistoryEventDef>
+    <defName>FD_TributeDemanded</defName>
+    <label>demanded tribute</label>
+    <maxRemembered>16</maxRemembered>
+  </HistoryEventDef>
+
+  <HistoryEventDef>
+    <defName>FD_TributePaid</defName>
+    <label>paid tribute</label>
+    <maxRemembered>16</maxRemembered>
+  </HistoryEventDef>
+
+  <HistoryEventDef>
+    <defName>FD_TributeRefused</defName>
+    <label>refused tribute</label>
+    <maxRemembered>16</maxRemembered>
+  </HistoryEventDef>
+
+</Defs>

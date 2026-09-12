@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    LetterDef first: the letterClass is what makes vanilla construct our ChoiceLetter subclass
+    rather than a plain letter, and LetterMaker.MakeLetter reads it off this def.
+  -->
+  <LetterDef>
+    <defName>FD_TributeDemand</defName>
+    <letterClass>FactionDynamics.ChoiceLetter_FDTribute</letterClass>
+    <color>(0.9, 0.85, 0.5)</color>
+    <bounce>true</bounce>
+    <flashInterval>1</flashInterval>
+    <arriveSound>LetterArrive_BadUrgent</arriveSound>
+  </LetterDef>
+
+  <!--
+    baseChance is 0 on purpose. This incident is never rolled by the storyteller's own weighted
+    selection - FDStorytellerComp decides when it fires and yields it directly as a FiringIncident.
+    Leaving a non-zero chance here would give it two independent ways to fire, at two different
+    rates, with only one of them respecting FD's cooldown.
+  -->
+  <IncidentDef>
+    <defName>FD_TributeDemand</defName>
+    <label>tribute demanded</label>
+    <category>Misc</category>
+    <targetTags>
+      <li>Map_PlayerHome</li>
+    </targetTags>
+    <workerClass>FactionDynamics.IncidentWorker_FDTribute</workerClass>
+    <baseChance>0</baseChance>
+    <pointsScaleable>false</pointsScaleable>
+    <requireColonistsPresent>true</requireColonistsPresent>
+    <minRefireDays>15</minRefireDays>
+  </IncidentDef>
+
+</Defs>

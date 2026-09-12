@@ -147,8 +147,8 @@ namespace FactionDynamics
     {
         private const int CheckIntervalTicks = 2500;
 
-        private List<int> consideredIds = new List<int>();
-        private HashSet<int> consideredLookup = new HashSet<int>();
+        internal List<int> consideredIds = new List<int>();
+        internal HashSet<int> consideredLookup = new HashSet<int>();
 
         public MapComponent_FDBountyWatcher(Map map) : base(map)
         {
@@ -173,6 +173,14 @@ namespace FactionDynamics
             List<Pawn> spawned = new List<Pawn>(map.mapPawns.AllPawnsSpawned);
             spawned.Sort((a, b) => a.thingIDNumber.CompareTo(b.thingIDNumber));
 
+            PruneConsidered(spawned);
+
+            int considered = 0;
+            int raised = 0;
+            int raisedThisPass = 0;
+            float lowestChance = float.MaxValue;
+            float highestChance = 0f;
+
             for (int i = 0; i < spawned.Count; i++)
             {
                 Pawn pawn = spawned[i];
@@ -181,23 +189,107 @@ namespace FactionDynamics
 
                 consideredLookup.Add(pawn.thingIDNumber);
                 consideredIds.Add(pawn.thingIDNumber);
+                considered++;
 
                 bool isLeader = pawn.Faction.leader == pawn;
                 float chance = isLeader ? cfg.bountySightingLeaderChance : cfg.bountySightingChance;
                 if (pawn.Faction.HostileTo(player)) chance *= 1.5f;
+                chance = UnityEngine.Mathf.Clamp01(chance);
+
+                if (chance < lowestChance) lowestChance = chance;
+                if (chance > highestChance) highestChance = chance;
 
                 bool hit;
                 using (FDRand.Push(pawn.thingIDNumber, now, FDRandSalt.QuestBounty))
                 {
-                    hit = Rand.Chance(UnityEngine.Mathf.Clamp01(chance));
+                    hit = Rand.Chance(chance);
                 }
 
                 if (hit)
+                {
+                    // One sighting per check, however many strangers walked in at once.
+                    //
+                    // The per-pawn roll is small, but it is rolled per pawn: a 198-raider plunder
+                    // raid put 121 new faces on the map in a single check and handed the player four
+                    // bounty quests in the same second. That reads as a bug even though every roll
+                    // was fair. The rest of the group is simply not considered yet - they are left
+                    // unmarked, so they can still be spotted on a later check.
                     TryGenerateBounty(pawn, isLeader);
+                    raised++;
+                    raisedThisPass++;
+
+                    if (raisedThisPass >= MaxBountiesPerCheck) break;
+                }
+            }
+
+            // Without this there is no way to tell a run of bad luck from the watcher never having
+            // looked at anybody - and those need completely different fixes. The rate is reported as
+            // the range actually rolled, because it varies per pawn (leader vs not, hostile vs not);
+            // printing one hardcoded figure described a roll that never happened.
+            if (considered > 0)
+            {
+                string rate = UnityEngine.Mathf.Approximately(lowestChance, highestChance)
+                    ? lowestChance.ToStringPercent()
+                    : lowestChance.ToStringPercent() + "-" + highestChance.ToStringPercent();
+
+                FDLog.Debug("Bounty watch: considered " + considered + " new pawns on "
+                            + (map.Parent?.Label ?? "map") + " at " + rate
+                            + " each; raised " + raised + ".");
             }
         }
 
-        private void TryGenerateBounty(Pawn pawn, bool isLeader)
+        /// <summary>Most bounty quests one check may hand the player at once.</summary>
+        private const int MaxBountiesPerCheck = 1;
+
+        /// <summary>
+        /// Forgets people who are no longer anywhere on this map.
+        ///
+        /// The considered list is scribed, and without this it only ever grows: every stranger who
+        /// has ever set foot on a home map stays in it for the life of the save, and the HashSet is
+        /// rebuilt from the whole thing on every load. Dropping ids that no longer correspond to a
+        /// pawn present keeps it proportional to the map rather than to the playthrough.
+        ///
+        /// Re-rolling someone who leaves and comes back years later is the intended trade: the point
+        /// of the list is stopping a re-roll every 2500 ticks while they stand there, not remembering
+        /// a passing trade caravan forever.
+        /// </summary>
+        private void PruneConsidered(List<Pawn> spawned)
+        {
+            if (consideredIds.Count < 256) return;
+
+            var present = new HashSet<int>();
+            for (int i = 0; i < spawned.Count; i++)
+                present.Add(spawned[i].thingIDNumber);
+
+            int removed = consideredIds.RemoveAll(id => !present.Contains(id));
+            if (removed <= 0) return;
+
+            consideredLookup.Clear();
+            for (int i = 0; i < consideredIds.Count; i++)
+                consideredLookup.Add(consideredIds[i]);
+
+            FDLog.Debug("Bounty watch: forgot " + removed + " pawns no longer on "
+                        + (map.Parent?.Label ?? "map") + ".");
+        }
+
+        /// <summary>Dev entry point: raise a bounty on this pawn now, skipping the sighting roll.</summary>
+        public static bool DebugForceBounty(Pawn pawn)
+        {
+            Map map = pawn?.Map;
+            if (map == null) return false;
+
+            var watcher = map.GetComponent<MapComponent_FDBountyWatcher>();
+            if (watcher == null) return false;
+
+            // Mark them considered so the natural roll doesn't also fire on the same pawn later.
+            if (watcher.consideredLookup.Add(pawn.thingIDNumber))
+                watcher.consideredIds.Add(pawn.thingIDNumber);
+
+            watcher.TryGenerateBounty(pawn, pawn.Faction != null && pawn.Faction.leader == pawn);
+            return true;
+        }
+
+        internal void TryGenerateBounty(Pawn pawn, bool isLeader)
         {
             QuestScriptDef def = FDQuestScriptDefOf.FD_HighProfileBounty;
             if (def == null) return;

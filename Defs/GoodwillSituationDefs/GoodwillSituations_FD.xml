@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Being in the def database is the registration. GoodwillSituationManager.Recalculate walks
+    DefDatabase<GoodwillSituationDef>.AllDefsListForReading and asks each def's Worker, so there is
+    no list to Harmony-patch into and no startup injector needed - unlike the settlement and
+    storyteller comps, which had nowhere to declare themselves.
+
+    baseMaxGoodwill / naturalGoodwillOffset are left unset on purpose. The base worker returns
+    (100, 0) rather than reading those fields, so unset means "no effect" - and both workers here
+    override the methods anyway. Setting them would imply the def data drives the behaviour when it
+    does not.
+  -->
+
+  <GoodwillSituationDef>
+    <defName>FD_Grudge</defName>
+    <label>bears a grudge</label>
+    <description>This faction remembers what you did to them. While the grudge lasts, relations cannot be repaired past a certain point - though it will fade over time.</description>
+    <workerClass>FactionDynamics.FDGoodwillSituationWorker_Grudge</workerClass>
+  </GoodwillSituationDef>
+
+  <GoodwillSituationDef>
+    <defName>FD_Hardship</defName>
+    <label>desperate</label>
+    <description>This faction is struggling to feed and defend itself. Hard times make for cold neighbours, and relations drift downward while the hardship lasts.</description>
+    <workerClass>FactionDynamics.FDGoodwillSituationWorker_Hardship</workerClass>
+  </GoodwillSituationDef>
+
+</Defs>

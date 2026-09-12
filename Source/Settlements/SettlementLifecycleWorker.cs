@@ -175,11 +175,12 @@ namespace FactionDynamics
         {
             float days = cfg.settlementCheckIntervalDays;
             float decay = FDMoodTuning.HardshipDecayPerDay * days;
-            float winterGain = FDMoodTuning.WinterHardshipPerDay * days;
+            float noGrowthGain = FDMoodTuning.NoGrowthHardshipPerDay * days;
             float regroupGain = FDMoodTuning.RegroupHardshipPerDay * days;
 
-            long absTicks = GenTicks.TicksAbs;
-            int wintering = 0;
+            int absTicks = GenTicks.TicksAbs;
+            int starving = 0;
+            int arid = 0;
             float total = 0f;
 
             for (int i = 0; i < settlements.Count; i++)
@@ -197,12 +198,20 @@ namespace FactionDynamics
 
                 sd.hardship = UnityEngine.Mathf.Max(0f, sd.hardship - decay);
 
-                Season season = GenDate.Season(absTicks, Find.WorldGrid.LongLatOf(s.Tile));
-                if (season == Season.Winter || season == Season.PermanentWinter)
+                // Can this settlement grow food right now? Asked of the actual seasonal temperature
+                // at its own tile, not of the calendar. GetTemperatureFromSeasonAtTile is a pure
+                // function - tile base temperature plus the season offset, no per-tile caching - so
+                // it is safe to call for every settlement of every faction on this cadence.
+                float tempC = GenTemperature.GetTemperatureFromSeasonAtTile(absTicks, s.Tile);
+                float severity = FDMoodTuning.NoGrowthSeverity(tempC);
+                if (severity > 0f)
                 {
-                    wintering++;
-                    if (sd.hardship < FDMoodTuning.WinterHardshipCap)
-                        sd.hardship = UnityEngine.Mathf.Min(FDMoodTuning.WinterHardshipCap, sd.hardship + winterGain);
+                    starving++;
+                    if (sd.hardship < FDMoodTuning.NoGrowthHardshipCap)
+                    {
+                        sd.hardship = UnityEngine.Mathf.Min(FDMoodTuning.NoGrowthHardshipCap,
+                            sd.hardship + noGrowthGain * severity);
+                    }
                 }
 
                 // Still licking its wounds from a raid that cost it people.
@@ -212,6 +221,20 @@ namespace FactionDynamics
                 // A settlement worn down below its normal strength struggles to feed itself.
                 if (sd.strengthFactor < 0.8f)
                     sd.hardship = UnityEngine.Mathf.Clamp01(sd.hardship + regroupGain * 0.5f);
+
+                // Dry ground. A floor rather than a gain: a desert settlement never recovers all
+                // the way to comfortable, but aridity alone never climbs toward a raid either.
+                // Applied last so it also catches a settlement the decay just pulled under it.
+                RimWorld.Planet.Tile tile = s.Tile.Valid ? Find.WorldGrid[s.Tile] : null;
+                if (tile != null)
+                {
+                    float aridity = FDMoodTuning.AridityFloor(tile.rainfall);
+                    if (aridity > 0f)
+                    {
+                        arid++;
+                        if (sd.hardship < aridity) sd.hardship = aridity;
+                    }
+                }
 
                 total += sd.hardship;
             }
@@ -228,7 +251,8 @@ namespace FactionDynamics
                             + " -> " + data.hardship.ToStringPercent()
                             + " (weighted toward your colony; flat mean would be "
                             + (total / settlements.Count).ToStringPercent() + ", "
-                            + wintering + "/" + settlements.Count + " settlements in winter)");
+                            + starving + "/" + settlements.Count + " settlements too cold or hot to grow food, "
+                            + arid + " on dry ground)");
             }
         }
 

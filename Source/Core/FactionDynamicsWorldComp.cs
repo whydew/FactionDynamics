@@ -86,9 +86,18 @@ namespace FactionDynamics
             FDLog.Message("World ready. Simulation config hash " + config.ConfigHash()
                           + " (settlements=" + config.settlements
                           + ", raidGeography=" + config.raidGeography
-                          + ", raidMotivations=" + config.raidMotivations + ")");
+                          + ", raidMotivations=" + config.raidMotivations
+                          + ", questsRaiding=" + config.questsRaiding
+                          + ", questsBounties=" + config.questsBounties
+                          + " [sighting " + config.bountySightingChance.ToStringPercent()
+                          + ", leader " + config.bountySightingLeaderChance.ToStringPercent() + "])");
 
             RebuildSortedKeys();
+
+            // Saves written before settlement state moved onto the settlements still carry it in the
+            // world component. Move it across before anything reads it. No-ops on a new game and on
+            // every load after the first.
+            MigrateLegacySettlementData();
         }
 
         public override void WorldComponentTick()
@@ -126,31 +135,55 @@ namespace FactionDynamics
             return data;
         }
 
+        /// <summary>
+        /// This settlement's state, held on the settlement itself by <see cref="FDSettlementComp"/>.
+        ///
+        /// The <paramref name="create"/> parameter is kept for call-site compatibility but no longer
+        /// means much: the comp exists from the moment the settlement does, so there is nothing to
+        /// lazily create. It still governs whether a settlement WITHOUT the comp is worth warning
+        /// about - a read-only caller (a draw path, an inspect string) gets a quiet null, while a
+        /// caller that meant to write gets a log line, because that means some settlement type is
+        /// escaping the comp injector and its state is being silently discarded.
+        /// </summary>
         public SettlementRuntimeData GetSettlementData(Settlement settlement, bool create = true)
         {
             if (settlement == null) return null;
-            return GetSettlementData(settlement.ID, create);
-        }
 
-        public SettlementRuntimeData GetSettlementData(int settlementId, bool create = true)
-        {
-            if (settlementData.TryGetValue(settlementId, out SettlementRuntimeData data))
-                return data;
+            FDSettlementComp comp = settlement.GetComponent<FDSettlementComp>();
+            if (comp != null) return comp.Data;
 
-            if (!create) return null;
+            if (create)
+            {
+                FDLog.Warning("No FDSettlementComp on " + settlement.Label + " (def "
+                              + (settlement.def?.defName ?? "null") + "); its state cannot be stored. "
+                              + "This usually means a settlement type the comp injector did not recognise.");
+            }
 
-            data = new SettlementRuntimeData(settlementId);
-            settlementData[settlementId] = data;
-            sortedSettlementIds.Add(settlementId);
-            sortedSettlementIds.Sort();
-            return data;
+            return null;
         }
 
         /// <summary>Faction ids in a stable order. Never iterate the dictionary directly.</summary>
         public List<int> SortedFactionIds => sortedFactionIds;
 
-        /// <summary>Settlement ids in a stable order. Never iterate the dictionary directly.</summary>
-        public List<int> SortedSettlementIds => sortedSettlementIds;
+        /// <summary>
+        /// Every tracked settlement, sorted by ID.
+        ///
+        /// Settlement state now lives on the settlements, so "what do we track" is simply "what
+        /// settlements exist". The sort is not decoration: Find.WorldObjects is insertion-ordered,
+        /// which is equal across Multiplayer clients in practice but is not a guarantee the engine
+        /// makes, so any loop that mutates state or consumes RNG iterates this instead.
+        /// </summary>
+        public List<Settlement> SortedSettlements()
+        {
+            var result = new List<Settlement>();
+            List<Settlement> all = Find.WorldObjects.Settlements;
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (all[i] != null) result.Add(all[i]);
+            }
+            result.Sort((a, b) => a.ID.CompareTo(b.ID));
+            return result;
+        }
 
         // ---------------------------------------------------------------- events
 
@@ -316,44 +349,74 @@ namespace FactionDynamics
 
         private void Maintenance(int now)
         {
-            // Drop data for settlements that no longer exist so the save doesn't grow forever.
-            // Build the live-id set first, then remove in sorted order (deterministic).
-            var live = new HashSet<int>();
-            List<WorldObject> objects = Find.WorldObjects.AllWorldObjects;
-            for (int i = 0; i < objects.Count; i++)
+            // Settlement pruning used to live here: build the set of live settlement ids, diff it
+            // against our keys, remove the orphans. All of that is gone. State lives on the
+            // settlement now, so a destroyed settlement takes its state with it and there is no
+            // orphan to find.
+            //
+            // Expiring finished regroups is gone too, for a different reason: IsRegrouping(now)
+            // already answers false once the tick has passed, so resetting the field was only ever
+            // tidying. The one thing that read regroupUntilTick directly was this loop.
+            //
+            // Faction data is still a dictionary - factions are not WorldObjects - but nothing has
+            // ever pruned it, and a faction's data staying behind after the faction is gone is
+            // harmless: it is a handful of floats, looked up by id and never iterated for anything
+            // that reaches the world.
+        }
+
+        /// <summary>
+        /// Moves settlement state out of the pre-comp save format and onto the settlements.
+        ///
+        /// Runs once, on the first load of a save written before <see cref="FDSettlementComp"/>
+        /// existed. Pure data movement: no RNG, no ordering sensitivity, so every Multiplayer client
+        /// performs it identically from the same save.
+        ///
+        /// Deliberately tolerant. A legacy entry whose settlement no longer exists is dropped (the
+        /// old pruning pass may simply not have reached it yet), and one whose settlement has no
+        /// comp is reported rather than silently lost.
+        /// </summary>
+        private void MigrateLegacySettlementData()
+        {
+            if (settlementData == null || settlementData.Count == 0) return;
+
+            int moved = 0, orphaned = 0, uncomped = 0;
+
+            List<Settlement> all = Find.WorldObjects.Settlements;
+            var byId = new Dictionary<int, Settlement>(all.Count);
+            for (int i = 0; i < all.Count; i++)
             {
-                if (objects[i] is Settlement s)
-                    live.Add(s.ID);
+                if (all[i] != null) byId[all[i].ID] = all[i];
             }
 
-            List<int> toRemove = null;
             for (int i = 0; i < sortedSettlementIds.Count; i++)
             {
                 int id = sortedSettlementIds[i];
-                if (!live.Contains(id))
-                {
-                    toRemove ??= new List<int>();
-                    toRemove.Add(id);
-                }
+                if (!settlementData.TryGetValue(id, out SettlementRuntimeData legacy) || legacy == null)
+                    continue;
+
+                if (!byId.TryGetValue(id, out Settlement settlement)) { orphaned++; continue; }
+
+                FDSettlementComp comp = settlement.GetComponent<FDSettlementComp>();
+                if (comp == null) { uncomped++; continue; }
+
+                SettlementRuntimeData target = comp.Data;
+                target.regroupUntilTick = legacy.regroupUntilTick;
+                target.strengthFactor = legacy.strengthFactor;
+                target.raidsSent = legacy.raidsSent;
+                target.foundedTick = legacy.foundedTick;
+                target.hardship = legacy.hardship;
+                target.hardshipInitialized = legacy.hardshipInitialized;
+                target.origin = legacy.origin;
+                moved++;
             }
 
-            if (toRemove != null)
-            {
-                for (int i = 0; i < toRemove.Count; i++)
-                {
-                    settlementData.Remove(toRemove[i]);
-                    sortedSettlementIds.Remove(toRemove[i]);
-                }
-            }
+            settlementData.Clear();
+            sortedSettlementIds.Clear();
 
-            // Expire finished regroups so the strength penalty stops applying and the inspect
-            // string goes back to normal.
-            for (int i = 0; i < sortedSettlementIds.Count; i++)
-            {
-                SettlementRuntimeData sd = settlementData[sortedSettlementIds[i]];
-                if (sd.regroupUntilTick > 0 && now >= sd.regroupUntilTick)
-                    sd.regroupUntilTick = -1;
-            }
+            FDLog.Message("Migrated settlement state onto the settlements: " + moved + " moved"
+                          + (orphaned > 0 ? ", " + orphaned + " for settlements that no longer exist" : "")
+                          + (uncomped > 0 ? ", " + uncomped + " LOST (no comp on that settlement type)" : "")
+                          + ".");
         }
 
         private void RebuildSortedKeys()
@@ -363,10 +426,15 @@ namespace FactionDynamics
                 sortedFactionIds.Add(key);
             sortedFactionIds.Sort();
 
+            // Legacy only - populated from an old save so the migration has a deterministic order to
+            // walk, and emptied by it. Nothing writes to settlementData any more.
             sortedSettlementIds.Clear();
-            foreach (int key in settlementData.Keys)
-                sortedSettlementIds.Add(key);
-            sortedSettlementIds.Sort();
+            if (settlementData != null)
+            {
+                foreach (int key in settlementData.Keys)
+                    sortedSettlementIds.Add(key);
+                sortedSettlementIds.Sort();
+            }
         }
 
         public override void ExposeData()

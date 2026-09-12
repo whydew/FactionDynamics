@@ -231,15 +231,25 @@ namespace FactionDynamics
             }
             finally
             {
-                FDRaidContext.Clear();
+                // Only the raid that owns the context may tear it down. A nested raid finishing
+                // first must not clear the outer raid's state out from under it.
+                if (FDRaidContext.IsForParms(parms))
+                    FDRaidContext.Clear();
             }
         }
 
-        /// <summary>Starts every raid from a clean slate.</summary>
+        /// <summary>
+        /// Starts every raid from a clean slate - unless another raid is already mid-execution.
+        ///
+        /// Clearing unconditionally was the other half of the nested-raid problem: an incident fired
+        /// from inside a raid would wipe the outer raid's context on its way in, and the outer raid
+        /// would finish building its LordJob from nothing.
+        /// </summary>
         [HarmonyPrefix]
         [HarmonyPatch("TryExecuteWorker")]
-        public static void TryExecuteWorker_Prefix()
+        public static void TryExecuteWorker_Prefix(IncidentParms parms)
         {
+            if (FDRaidContext.Active && !FDRaidContext.IsForParms(parms)) return;
             FDRaidContext.Clear();
         }
     }
@@ -255,11 +265,39 @@ namespace FactionDynamics
         [HarmonyPostfix]
         public static void Postfix(IncidentParms parms, List<Pawn> pawns)
         {
+            if (pawns == null) return;
+
+            // This postfix is on IncidentWorker_Raid, which is where PostProcessSpawnedPawns is
+            // declared - IncidentWorker_RaidEnemy does not override it, and IncidentWorker_RaidFriendly
+            // overrides neither it nor TryExecuteWorker. So this runs for ALLY arrivals, and for any
+            // raid-like incident another mod builds on IncidentWorker_Raid, not just for our raids.
+            //
+            // The prefix/finalizer that bracket the context are on IncidentWorker_RaidEnemy's OWN
+            // TryExecuteWorker override, so neither of them runs for those other callers. Asking the
+            // context whether it actually belongs to this incident is what keeps a relief force from
+            // arriving with the malnutrition of whatever raid last set it.
+            if (!FDRaidContext.IsFor(parms)) return;
+
+            // Belt and braces: a motivation only ever describes people attacking us.
+            Faction player = Faction.OfPlayerSilentFail;
+            if (player == null || !parms.faction.HostileTo(player)) return;
+
             FDRaidMotivationDef motivation = FDRaidContext.Motivation;
-            if (motivation == null || pawns == null) return;
+            if (motivation == null) return;
             if (motivation.pawnHediff == null && motivation.pawnFoodLevel.min < 0f) return;
 
+            // How badly off the settlement that sent them actually is. This is the origin's own
+            // figure, not the faction average - the town that emptied its stores is the town whose
+            // people show up starving.
+            float hardship = 0f;
+            FactionDynamicsWorldComp comp = FactionDynamicsWorldComp.Current;
+            if (comp != null)
+                hardship = comp.HardshipFor(parms.faction, FDRaidContext.Origin);
+
             int affected = 0;
+            bool collapsedUsed = false;
+            float worst = 0f;
+
             for (int i = 0; i < pawns.Count; i++)
             {
                 Pawn pawn = pawns[i];
@@ -269,7 +307,24 @@ namespace FactionDynamics
                     pawn.needs.food.CurLevelPercentage = motivation.pawnFoodLevel.RandomInRange;
 
                 if (motivation.pawnHediff != null)
-                    HealthUtility.AdjustSeverity(pawn, motivation.pawnHediff, motivation.pawnHediffSeverity.RandomInRange);
+                {
+                    float severity;
+
+                    // At most one per raid: the person they should not have brought.
+                    if (!collapsedUsed && motivation.collapsedRaiderChance > 0f
+                        && Rand.Chance(motivation.collapsedRaiderChance))
+                    {
+                        severity = motivation.collapsedRaiderSeverity.RandomInRange;
+                        collapsedUsed = true;
+                    }
+                    else
+                    {
+                        severity = SeverityFor(motivation, hardship);
+                    }
+
+                    HealthUtility.AdjustSeverity(pawn, motivation.pawnHediff, severity);
+                    if (severity > worst) worst = severity;
+                }
 
                 affected++;
             }
@@ -277,8 +332,87 @@ namespace FactionDynamics
             if (affected > 0)
             {
                 FDLog.Debug("Applied " + motivation.defName + " condition to " + affected + " raiders"
-                            + (motivation.pawnHediff != null ? " (" + motivation.pawnHediff.defName + ")" : "") + ".");
+                            + (motivation.pawnHediff != null
+                                ? " (" + motivation.pawnHediff.defName
+                                  + ", origin hardship " + hardship.ToStringPercent()
+                                  + ", worst severity " + worst.ToString("F2")
+                                  + (collapsedUsed ? ", one collapsed" : "") + ")"
+                                : "") + ".");
             }
+        }
+
+        private static float SeverityFor(FDRaidMotivationDef motivation, float hardship)
+        {
+            return FDSeverity.ForHardship(motivation, hardship);
+        }
+    }
+
+    /// <summary>
+    /// Empties the raiders' packs for motivations that say they arrive with nothing.
+    ///
+    /// This hangs off GenerateRaidLoot rather than PostProcessSpawnedPawns, and the ordering is the
+    /// entire point. In IncidentWorker_Raid.TryGenerateRaidInfo the calls run:
+    ///
+    ///     PostProcessSpawnedPawns(parms, pawns);      // where the malnutrition is applied
+    ///     ...
+    ///     GenerateRaidLoot(parms, points, pawns);     // ThingSetMaker + RaidLootDistributor
+    ///
+    /// so vanilla stuffs the raiders' inventories AFTER the post-process hook. Stripping there
+    /// emptied packs that were then immediately refilled, which is why starving raiders kept
+    /// turning up with packaged survival meals even with arriveWithoutFood set - the strip was
+    /// running and reporting nothing, because at that moment there genuinely was nothing.
+    /// </summary>
+    [HarmonyPatch(typeof(IncidentWorker_RaidEnemy), "GenerateRaidLoot")]
+    public static class Patch_RaidStripFood
+    {
+        [HarmonyPostfix]
+        public static void Postfix(List<Pawn> pawns)
+        {
+            FDRaidMotivationDef motivation = FDRaidContext.Motivation;
+            if (motivation == null || !motivation.arriveWithoutFood || pawns == null) return;
+
+            int stripped = 0;
+            for (int i = 0; i < pawns.Count; i++)
+            {
+                Pawn pawn = pawns[i];
+                if (pawn == null || pawn.Dead) continue;
+                stripped += StripFood(pawn);
+            }
+
+            if (stripped > 0)
+                FDLog.Debug("Removed " + stripped + " food stacks from " + motivation.defName + " raiders.");
+        }
+
+        /// <summary>
+        /// Empties a raider's pack of anything edible. Returns how many stacks went.
+        ///
+        /// Deterministic for Multiplayer: fixed reverse-index iteration, no RNG. Runs inside the
+        /// incident, which every client executes identically.
+        /// </summary>
+        private static int StripFood(Pawn pawn)
+        {
+            ThingOwner<Thing> inv = pawn.inventory?.innerContainer;
+            if (inv == null) return 0;
+
+            int removed = 0;
+            for (int i = inv.Count - 1; i >= 0; i--)
+            {
+                Thing t = inv[i];
+                if (t?.def == null || !t.def.IsNutritionGivingIngestible) continue;
+
+                // Drugs are not rations - a starving band can still be carrying go-juice, and
+                // JobGiver_TakeCombatEnhancingDrug in the loot duty expects to find it.
+                if (t.def.IsDrug) continue;
+
+                // Destroy-then-Remove, matching ThingOwner.ClearAndDestroyContents. Doing it the
+                // other way round drops the thing out of the container before the owner is
+                // notified of the destruction.
+                t.Destroy(DestroyMode.Vanish);
+                inv.Remove(t);
+                removed++;
+            }
+
+            return removed;
         }
     }
 

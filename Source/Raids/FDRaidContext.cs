@@ -31,6 +31,39 @@ namespace FactionDynamics
         private static Faction forFaction;
         private static bool pointsScaled;
 
+        /// <summary>The faction this context was computed for, or null when inactive.</summary>
+        public static Faction ForFaction => forFaction;
+
+        /// <summary>
+        /// Is this context actually about the raid described by these parms?
+        ///
+        /// Anything reading <see cref="Motivation"/> from a hook that is not exclusively an enemy
+        /// raid MUST ask this first. PostProcessSpawnedPawns is declared on IncidentWorker_Raid,
+        /// not on IncidentWorker_RaidEnemy, and IncidentWorker_RaidFriendly declares neither it nor
+        /// TryExecuteWorker - it runs the identical base method body. A postfix there therefore
+        /// fires for ALLY arrivals too, and without this check an allied relief force walked in
+        /// carrying the malnutrition of the previous enemy raid, at a severity scaled by the
+        /// hardship of an enemy settlement on the other side of the planet.
+        /// </summary>
+        /// <summary>
+        /// Does the live context belong to this exact parms object? Ownership only - unlike
+        /// <see cref="IsFor"/> it does not care which faction ended up on it, so it stays true
+        /// across the window where vanilla has not resolved the faction yet.
+        /// </summary>
+        public static bool IsForParms(IncidentParms parms)
+        {
+            return Active && parms != null && ReferenceEquals(forParms, parms);
+        }
+
+        public static bool IsFor(IncidentParms parms)
+        {
+            return Active
+                   && parms != null
+                   && ReferenceEquals(forParms, parms)
+                   && parms.faction != null
+                   && forFaction == parms.faction;
+        }
+
         public static void Clear()
         {
             Motivation = null;
@@ -52,6 +85,19 @@ namespace FactionDynamics
 
             // Already computed for this exact raid and faction.
             if (Active && ReferenceEquals(forParms, parms) && forFaction == parms.faction) return;
+
+            // A context is already live for a DIFFERENT raid. That means one raid is executing
+            // inside another - a mod firing an incident from a raid hook, a quest spawning a raid
+            // mid-resolve. Taking over here would overwrite the outer raid's motivation and origin
+            // while its own LordJob is still being built from them, and the outer raid is the one
+            // the player is about to meet. The nested raid simply runs as vanilla instead.
+            if (Active && forParms != null && !ReferenceEquals(forParms, parms))
+            {
+                FDLog.Debug("Nested raid detected for " + parms.faction.Name
+                            + "; leaving the in-flight context for " + (forFaction?.Name ?? "?")
+                            + " alone and letting this one run as vanilla.");
+                return;
+            }
 
             Clear();
             forParms = parms;

@@ -12,13 +12,22 @@ namespace FactionDynamics
     }
 
     /// <summary>
-    /// Per-settlement state, keyed by <see cref="RimWorld.Planet.WorldObject.ID"/> in
-    /// <see cref="FactionDynamicsWorldComp"/>.
+    /// Per-settlement state, held by <see cref="FDSettlementComp"/> on the settlement itself.
     ///
-    /// This lives in the world component rather than in a <c>WorldObjectComp</c> on purpose: one
-    /// ordered structure that we control is easier to keep deterministic under Multiplayer than
-    /// per-object comps, it needs no XML patch on the Settlement def, and it works for settlement
-    /// types added by other mods without us having to know about them.
+    /// This used to live in a dictionary on the world component keyed by settlement ID, and the
+    /// comment here used to defend that choice: one ordered structure we control, no XML patch, and
+    /// it covers settlement types added by other mods. The last point was real but turned out to be
+    /// an argument against an XML patch specifically, not against comps - the injector attaches this
+    /// to every def whose worldObjectClass derives from Settlement, which covers modded settlements
+    /// the same way.
+    ///
+    /// What the dictionary cost was a parallel sorted key list, a maintenance pass to prune ids
+    /// whose settlement no longer existed, and hand-written scribing. State keyed by id, outliving
+    /// the thing it described, was the shape behind two of the defects in the 2026-09-11 review.
+    /// A comp is scribed, destroyed and inspected with its parent, so none of that code exists now.
+    ///
+    /// <c>settlementId</c> survives only so the migration can match old dictionary entries to their
+    /// settlements; nothing reads it afterwards and it goes when the dictionary does.
     /// </summary>
     public class SettlementRuntimeData : IExposable
     {

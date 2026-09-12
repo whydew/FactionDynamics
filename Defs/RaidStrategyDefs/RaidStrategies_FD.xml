@@ -40,7 +40,14 @@
       <li MayRequire="Ludeon.RimWorld.Anomaly">EdgeWalkInDarkness</li>
     </arriveModes>
     <letterLabelEnemy>Raid</letterLabelEnemy>
-    <arrivalTextEnemy>They are attacking immediately.</arrivalTextEnemy>
+    <!--
+      Deliberately neutral, and NOT "They are attacking immediately." - which is what this said,
+      copied from ImmediateAttack, and which contradicted the mod's own letter one paragraph later.
+      The player was told the raiders were attacking on sight and then, two lines down, that they
+      were only here for the food and would leave the moment they had enough of it. The motivation
+      suffix carries the specifics; this line only has to say they have arrived and are coming in.
+    -->
+    <arrivalTextEnemy>They are moving in.</arrivalTextEnemy>
     <letterLabelFriendly>Friendlies</letterLabelFriendly>
     <arrivalTextFriendly>They are moving in to help you immediately.</arrivalTextFriendly>
   </RaidStrategyDef>
